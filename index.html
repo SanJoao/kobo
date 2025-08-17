@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kobo Highlights</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Kobo Highlights Dashboard</h1>
+        <div id="dashboard">
+            <div class="chart-container">
+                <canvas id="time-spent-chart"></canvas>
+            </div>
+            <div class="chart-container">
+                <canvas id="books-chart"></canvas>
+            </div>
+            <div class="chart-container">
+                <canvas id="colors-chart"></canvas>
+            </div>
+            <div class="chart-container full-width">
+                <div id="timeline-filters">
+                    <button data-filter="day">Day</button>
+                    <button data-filter="week">Week</button>
+                    <button data-filter="month">Month</button>
+                    <button data-filter="ytd">YTD</button>
+                    <button data-filter="1y">1Y</button>
+                    <button data-filter="max">MAX</button>
+                </div>
+                <canvas id="timeline-chart"></canvas>
+            </div>
+        </div>
+        <div class="filters">
+            <select id="book-filter">
+                <option value="all">All Books</option>
+            </select>
+            <select id="type-filter">
+                <option value="all">All Types</option>
+                <option value="highlight">Highlights</option>
+                <option value="note">Notes</option>
+            </select>
+            <select id="color-filter">
+                <option value="all">All Colors</option>
+                <option value="0">Yellow</option>
+                <option value="1">Pink</option>
+                <option value="2">Blue</option>
+                <option value="3">Green</option>
+            </select>
+            <select id="sort-filter">
+                <option value="random" selected>Random</option>
+                <option value="date_desc">Newest First</option>
+                <option value="date_asc">Oldest First</option>
+                <option value="book_asc">By Book (A-Z)</option>
+            </select>
+            <input type="text" id="search-input" placeholder="Search highlights...">
+        </div>
+        <div id="highlights-container"></div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
