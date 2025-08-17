@@ -64,6 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return acc;
         }, {});
         const sortedTime = Object.entries(bookTime).sort(([, a], [, b]) => b - a);
+        const totalTime = sortedTime.reduce((sum, [, time]) => sum + time, 0);
         timeSpentChart = new Chart(timeSpentCtx, {
             type: 'bar',
             data: {
@@ -82,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 maintainAspectRatio: false,
                 plugins: {
                     legend: { display: false },
-                    title: { display: true, text: 'Time Spent Reading' }
+                    title: { display: true, text: `Time Spent Reading (Total: ${(totalTime / 3600).toFixed(2)} hours)` }
                 }
             }
         });
@@ -93,6 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return acc;
         }, {});
         const sortedBooks = Object.entries(bookCounts).sort(([, a], [, b]) => b - a);
+        const totalHighlights = sortedBooks.reduce((sum, [, count]) => sum + count, 0);
         booksChart = new Chart(booksCtx, {
             type: 'bar',
             data: {
@@ -111,7 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 maintainAspectRatio: false,
                 plugins: {
                     legend: { display: false },
-                    title: { display: true, text: 'Highlights by Book' }
+                    title: { display: true, text: `Highlights by Book (Total: ${totalHighlights})` }
                 },
                 onClick: (evt, elements) => {
                     if (elements.length > 0) {
@@ -453,8 +455,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return acc;
         }, {});
         const sortedTime = Object.entries(bookTime).sort(([, a], [, b]) => b - a);
+        const totalTime = sortedTime.reduce((sum, [, time]) => sum + time, 0);
         timeSpentChart.data.labels = sortedTime.map(([title]) => title);
         timeSpentChart.data.datasets[0].data = sortedTime.map(([, time]) => (time / 3600).toFixed(2));
+        timeSpentChart.options.plugins.title.text = `Time Spent Reading (Total: ${(totalTime / 3600).toFixed(2)} hours)`;
         timeSpentChart.update();
 
         // Update Book Chart
@@ -463,8 +467,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return acc;
         }, {});
         const sortedBooks = Object.entries(bookCounts).sort(([, a], [, b]) => b - a);
+        const totalHighlights = sortedBooks.reduce((sum, [, count]) => sum + count, 0);
         booksChart.data.labels = sortedBooks.map(([title]) => title);
         booksChart.data.datasets[0].data = sortedBooks.map(([, count]) => count);
+        booksChart.options.plugins.title.text = `Highlights by Book (Total: ${totalHighlights})`;
         booksChart.update();
 
         // Update Color Chart
@@ -472,8 +478,11 @@ document.addEventListener('DOMContentLoaded', () => {
             acc[h.color] = (acc[h.color] || 0) + 1;
             return acc;
         }, {});
-        colorsChart.data.labels = Object.keys(colorCounts).map(c => colorMap[c].name);
+        const colorKeys = Object.keys(colorCounts);
+        colorsChart.data.labels = colorKeys.map(c => colorMap[c].name);
         colorsChart.data.datasets[0].data = Object.values(colorCounts);
+        colorsChart.data.datasets[0].backgroundColor = colorKeys.map(c => colorMap[c].bg);
+        colorsChart.data.datasets[0].borderColor = colorKeys.map(c => colorMap[c].border);
         colorsChart.update();
 
         // Update Timeline Chart
