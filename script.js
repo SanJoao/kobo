@@ -1,3 +1,8 @@
+import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+import { collection, getDocs } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+import { auth, db } from "./firebase-init.js";
+const provider = new GoogleAuthProvider();
+
 document.addEventListener('DOMContentLoaded', () => {
     const highlightsContainer = document.getElementById('highlights-container');
     const bookFilter = document.getElementById('book-filter');
@@ -5,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const colorFilter = document.getElementById('color-filter');
     const sortFilter = document.getElementById('sort-filter');
     const searchInput = document.getElementById('search-input');
+    const userProfile = document.getElementById('user-profile');
     
     let allHighlights = [];
     let allBooks = [];
@@ -19,28 +25,80 @@ document.addEventListener('DOMContentLoaded', () => {
         3: { name: 'Green', bg: 'rgba(76, 175, 80, 0.7)', border: 'rgba(76, 175, 80, 1)' },
     };
 
-    Promise.all([
-        fetch('books.json').then(response => response.json()),
-        fetch('highlights.json').then(response => response.json())
-    ]).then(([books, highlights]) => {
-        allBooks = books;
-        const booksMap = new Map(books.map(book => [book.book_id, book]));
-        
-        allHighlights = highlights.map(highlight => {
-            const book = booksMap.get(highlight.book_id);
-            return {
-                ...highlight,
-                ...book,
-                book_title: book.title
-            };
-        });
+    // --- Authentication Logic ---
 
-        populateBookFilter(allBooks);
-        createCharts(allHighlights, allBooks);
-        filterAndSort();
+    const updateUI = (user) => {
+        if (user) {
+            // User is signed in
+            userProfile.innerHTML = `
+                <span id="user-name">${user.displayName}</span>
+                <button id="upload-btn">Upload Highlights</button>
+                <input type="file" id="file-upload" style="display: none;" accept=".sqlite"/>
+                <button id="logout-btn">Logout</button>
+            `;
+            document.getElementById('logout-btn').addEventListener('click', () => {
+                signOut(auth);
+            });
+            document.getElementById('upload-btn').addEventListener('click', () => {
+                window.location.href = 'upload.html';
+            });
+        } else {
+            // User is signed out
+            userProfile.innerHTML = `
+                <button id="login-google-btn">Sign in with Google</button>
+            `;
+            document.getElementById('login-google-btn').addEventListener('click', () => {
+                signInWithPopup(auth, provider)
+                    .catch((error) => {
+                        console.error("Authentication failed:", error);
+                        alert(error.message);
+                    });
+            });
+        }
+    };
+
+    onAuthStateChanged(auth, user => {
+        updateUI(user);
     });
 
+    // Only load dashboard data if we are on the main page
+    if (highlightsContainer) {
+        loadAllPublicData();
+    }
+
+    async function loadAllPublicData() {
+        try {
+            const [booksSnapshot, highlightsSnapshot] = await Promise.all([
+                getDocs(collection(db, "books")),
+                getDocs(collection(db, "highlights"))
+            ]);
+
+            const books = booksSnapshot.docs.map(doc => ({ book_id: doc.id, ...doc.data() }));
+            const highlights = highlightsSnapshot.docs.map(doc => ({ highlight_id: doc.id, ...doc.data() }));
+
+            const booksMap = new Map(books.map(book => [book.book_id, book]));
+
+            allBooks = books;
+            allHighlights = highlights.map(highlight => {
+                const book = booksMap.get(highlight.book_id);
+                return {
+                    ...highlight,
+                    ...book,
+                    book_title: book ? book.title : 'Unknown Book'
+                };
+            });
+
+            populateBookFilter(allBooks);
+            createCharts(allHighlights, allBooks);
+            filterAndSort();
+
+        } catch (error) {
+            console.error("Error loading data from Firestore:", error);
+        }
+    }
+
     function populateBookFilter(books) {
+        bookFilter.innerHTML = '<option value="all">All Books</option>'; // Clear previous options
         books.sort((a, b) => a.title.localeCompare(b.title));
         books.forEach(book => {
             const option = document.createElement('option');
@@ -51,6 +109,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function createCharts(highlights, books) {
+        if (booksChart) booksChart.destroy();
+        if (colorsChart) colorsChart.destroy();
+        if (timeSpentChart) timeSpentChart.destroy();
+        if (timelineChart) timelineChart.destroy();
+
         const booksCtx = document.getElementById('books-chart').getContext('2d');
         const colorsCtx = document.getElementById('colors-chart').getContext('2d');
         const timeSpentCtx = document.getElementById('time-spent-chart').getContext('2d');
@@ -584,15 +647,25 @@ document.addEventListener('DOMContentLoaded', () => {
         updateCharts(filteredHighlights);
     }
 
-    bookFilter.addEventListener('change', () => {
-        activeBookFilter = bookFilter.value;
-        filterAndSort();
-    });
-    typeFilter.addEventListener('change', filterAndSort);
-    colorFilter.addEventListener('change', () => {
-        activeColorFilter = colorFilter.value;
-        filterAndSort();
-    });
-    sortFilter.addEventListener('change', filterAndSort);
-    searchInput.addEventListener('input', filterAndSort);
+    if (bookFilter) {
+        bookFilter.addEventListener('change', () => {
+            activeBookFilter = bookFilter.value;
+            filterAndSort();
+        });
+    }
+    if (typeFilter) {
+        typeFilter.addEventListener('change', filterAndSort);
+    }
+    if (colorFilter) {
+        colorFilter.addEventListener('change', () => {
+            activeColorFilter = colorFilter.value;
+            filterAndSort();
+        });
+    }
+    if (sortFilter) {
+        sortFilter.addEventListener('change', filterAndSort);
+    }
+    if (searchInput) {
+        searchInput.addEventListener('input', filterAndSort);
+    }
 });

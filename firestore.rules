@@ -1,0 +1,15 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow public read access to books and highlights
+    match /books/{bookId} {
+      allow read: if true;
+      allow write: if false; // No one can write directly
+    }
+
+    match /highlights/{highlightId} {
+      allow read: if true;
+      allow write: if false; // No one can write directly
+    }
+  }
+}

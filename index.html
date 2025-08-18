@@ -7,8 +7,14 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
+    <header>
         <h1>Kobo Highlights Dashboard</h1>
+        <div id="user-profile">
+            <button id="login-btn">Login</button>
+            <button id="signup-btn">Sign Up</button>
+        </div>
+    </header>
+    <div class="container">
         <div id="dashboard">
             <div class="chart-container">
                 <canvas id="time-spent-chart"></canvas>
@@ -58,6 +64,6 @@
         <div id="highlights-container"></div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="script.js"></script>
+    <script type="module" src="script.js"></script>
 </body>
 </html>

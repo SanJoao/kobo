@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Kobo Highlights</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .upload-container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 30px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .instructions {
+            text-align: left;
+            margin-bottom: 30px;
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #eee;
+        }
+        .instructions h2 {
+            margin-top: 0;
+        }
+        .instructions p, .instructions li {
+            line-height: 1.6;
+        }
+        #upload-button {
+            padding: 15px 30px;
+            font-size: 1.2em;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        #upload-button:hover {
+            background-color: #0056b3;
+        }
+        #upload-status {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Kobo Highlights Dashboard</h1>
+        <div id="user-profile">
+            <!-- This will be populated by script.js -->
+        </div>
+    </header>
+
+    <div class="upload-container">
+        <div class="instructions">
+            <h2>How to Find Your Highlights File</h2>
+            <p>Follow these steps to locate your Kobo database file:</p>
+            <ol>
+                <li>Connect your Kobo eReader to your computer.</li>
+                <li>Open the Kobo drive. You should see a hidden folder named <strong>.kobo</strong> (you may need to enable "Show hidden files" on your computer).</li>
+                <li>Inside the <strong>.kobo</strong> folder, find the file named <strong>KoboReader.sqlite</strong>.</li>
+            </ol>
+            <p>This file contains all your highlights and notes.</p>
+        </div>
+        
+        <button id="upload-button">Select KoboReader.sqlite File</button>
+        <input type="file" id="file-input" style="display: none;" accept=".sqlite">
+        
+        <p id="upload-status"></p>
+    </div>
+
+    <script type="module" src="script.js"></script>
+    <script type="module" src="upload.js"></script>
+</body>
+</html>
