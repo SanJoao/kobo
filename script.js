@@ -1,6 +1,7 @@
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
-import { collection, getDocs } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+import { collection, getDocs, query, where, collectionGroup, limit, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 import { auth, db } from "./firebase-init.js";
+import { loadProfile } from "./profile.js";
 const provider = new GoogleAuthProvider();
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -25,56 +26,197 @@ document.addEventListener('DOMContentLoaded', () => {
         3: { name: 'Green', bg: 'rgba(76, 175, 80, 0.7)', border: 'rgba(76, 175, 80, 1)' },
     };
 
+    // --- Routing ---
+    const handleRouting = () => {
+        const path = window.location.pathname;
+        const landingPage = document.getElementById('landing-page');
+        const mainContent = document.getElementById('main-content');
+        const profileSection = document.getElementById('profile-section');
+
+        if (path === '/' || path === '/index.html') {
+            landingPage.style.display = 'block';
+            mainContent.style.display = 'none';
+            if (profileSection) profileSection.style.display = 'none';
+        } else if (path.startsWith('/user/')) {
+            landingPage.style.display = 'none';
+            mainContent.style.display = 'block';
+            if (profileSection) profileSection.style.display = 'block';
+            const userId = path.split('/')[2];
+            loadUserData(userId);
+            loadProfile(userId);
+        } else {
+            landingPage.style.display = 'none';
+            mainContent.style.display = 'block';
+            if (profileSection) profileSection.style.display = 'none';
+            loadAllPublicData();
+        }
+    };
+
     // --- Authentication Logic ---
 
     const updateUI = (user) => {
+        const userProfileContainer = document.getElementById('user-profile');
+        userProfileContainer.innerHTML = ''; // Clear previous content
+
+        const h1 = document.querySelector('header h1');
+
         if (user) {
             // User is signed in
-            userProfile.innerHTML = `
-                <span id="user-name">${user.displayName}</span>
-                <button id="upload-btn">Upload Highlights</button>
-                <input type="file" id="file-upload" style="display: none;" accept=".sqlite"/>
-                <button id="logout-btn">Logout</button>
-            `;
-            document.getElementById('logout-btn').addEventListener('click', () => {
-                signOut(auth);
-            });
-            document.getElementById('upload-btn').addEventListener('click', () => {
-                window.location.href = 'upload.html';
-            });
+            const userNameEl = document.createElement('a');
+            userNameEl.href = `/user/${user.uid}`;
+            userNameEl.id = 'user-name';
+            userNameEl.textContent = user.displayName;
+
+            const uploadBtn = document.createElement('button');
+            uploadBtn.id = 'upload-btn';
+            uploadBtn.textContent = 'Upload Highlights';
+            uploadBtn.addEventListener('click', () => window.location.href = 'upload.html');
+
+            const logoutBtn = document.createElement('button');
+            logoutBtn.id = 'logout-btn';
+            logoutBtn.textContent = 'Logout';
+            logoutBtn.addEventListener('click', () => signOut(auth));
+
+            userProfileContainer.append(userNameEl, uploadBtn, logoutBtn);
+            if (h1) h1.style.marginRight = 'auto';
+
         } else {
             // User is signed out
-            userProfile.innerHTML = `
-                <button id="login-google-btn">Sign in with Google</button>
-            `;
-            document.getElementById('login-google-btn').addEventListener('click', () => {
-                signInWithPopup(auth, provider)
-                    .catch((error) => {
-                        console.error("Authentication failed:", error);
-                        alert(error.message);
-                    });
+            const loginBtn = document.createElement('button');
+            loginBtn.id = 'login-google-btn';
+            loginBtn.textContent = 'Sign in with Google';
+            loginBtn.addEventListener('click', () => {
+                signInWithPopup(auth, provider).catch(error => {
+                    console.error("Authentication failed:", error);
+                    alert(error.message);
+                });
             });
+            userProfileContainer.appendChild(loginBtn);
+            if (h1) h1.style.marginRight = 'auto';
         }
     };
 
     onAuthStateChanged(auth, user => {
         updateUI(user);
+        handleRouting(); // Re-route after auth state changes
     });
 
-    // Only load dashboard data if we are on the main page
-    if (highlightsContainer) {
-        loadAllPublicData();
+    // Load random highlights on the landing page when the DOM is ready.
+    if (window.location.pathname === '/' || window.location.pathname === '/index.html') {
+        loadRandomHighlights();
     }
 
-    async function loadAllPublicData() {
+    async function getBookForHighlight(highlight) {
+        const bookRef = doc(db, `users/${highlight.user_id}/books/${highlight.book_id}`);
+        const bookSnap = await getDoc(bookRef);
+        return bookSnap.exists() ? bookSnap.data() : null;
+    }
+
+    async function loadRandomHighlights() {
         try {
+            const highlightsQuery = query(collectionGroup(db, 'highlights'), limit(25));
+            const highlightsSnapshot = await getDocs(highlightsQuery);
+            
+            let highlights = highlightsSnapshot.docs.map(doc => ({
+                highlight_id: doc.id,
+                user_id: doc.ref.parent.parent.id,
+                ...doc.data()
+            }));
+
+            const randomHighlights = highlights.sort(() => 0.5 - Math.random()).slice(0, 25);
+
+            const enrichedHighlights = await Promise.all(randomHighlights.map(async h => {
+                const book = await getBookForHighlight(h);
+                return { ...h, book_title: book ? book.title : 'Unknown Book' };
+            }));
+
+            const randomHighlightsContainer = document.getElementById('random-highlights-container');
+            randomHighlightsContainer.innerHTML = '';
+            enrichedHighlights.forEach(h => {
+                const highlightEl = document.createElement('div');
+                highlightEl.classList.add('highlight', `color-${h.color}`);
+
+                const titleEl = document.createElement('div');
+                titleEl.classList.add('book-title');
+                titleEl.innerHTML = `<span>${h.book_title}</span>`;
+                highlightEl.appendChild(titleEl);
+
+                const text = document.createElement('p');
+                text.textContent = h.text;
+                highlightEl.appendChild(text);
+
+                if (h.annotation) {
+                    const annotation = document.createElement('p');
+                    annotation.classList.add('annotation');
+                    annotation.textContent = h.annotation;
+                    highlightEl.appendChild(annotation);
+                }
+
+                const date = document.createElement('p');
+                date.classList.add('date');
+                date.textContent = new Date(h.date_created).toLocaleString();
+                highlightEl.appendChild(date);
+
+                randomHighlightsContainer.appendChild(highlightEl);
+            });
+
+        } catch (error) {
+            console.error("Error loading random highlights:", error);
+        }
+    }
+
+    async function loadUserData(userId) {
+        try {
+            const userBooksQuery = query(collection(db, "users", userId, "books"));
+            const userHighlightsQuery = query(collection(db, "users", userId, "highlights"));
+
             const [booksSnapshot, highlightsSnapshot] = await Promise.all([
-                getDocs(collection(db, "books")),
-                getDocs(collection(db, "highlights"))
+                getDocs(userBooksQuery),
+                getDocs(userHighlightsQuery)
             ]);
 
             const books = booksSnapshot.docs.map(doc => ({ book_id: doc.id, ...doc.data() }));
             const highlights = highlightsSnapshot.docs.map(doc => ({ highlight_id: doc.id, ...doc.data() }));
+
+            const booksMap = new Map(books.map(book => [book.book_id, book]));
+
+            allBooks = books;
+            allHighlights = highlights.map(highlight => {
+                const book = booksMap.get(highlight.book_id);
+                return {
+                    ...highlight,
+                    ...book,
+                    book_title: book ? book.title : 'Unknown Book'
+                };
+            });
+
+            populateBookFilter(allBooks);
+            createCharts(allHighlights, allBooks);
+            filterAndSort();
+
+        } catch (error) {
+            console.error("Error loading user data from Firestore:", error);
+        }
+    }
+
+    async function loadAllPublicData() {
+        try {
+            const usersSnapshot = await getDocs(collection(db, "users"));
+            let books = [];
+            let highlights = [];
+
+            for (const userDoc of usersSnapshot.docs) {
+                const userBooksQuery = query(collection(db, "users", userDoc.id, "books"));
+                const userHighlightsQuery = query(collection(db, "users", userDoc.id, "highlights"));
+
+                const [booksSnapshot, highlightsSnapshot] = await Promise.all([
+                    getDocs(userBooksQuery),
+                    getDocs(userHighlightsQuery)
+                ]);
+
+                books = books.concat(booksSnapshot.docs.map(doc => ({ book_id: doc.id, ...doc.data() })));
+                highlights = highlights.concat(highlightsSnapshot.docs.map(doc => ({ highlight_id: doc.id, ...doc.data() })));
+            }
 
             const booksMap = new Map(books.map(book => [book.book_id, book]));
 

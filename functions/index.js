@@ -67,7 +67,7 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2 }, async (event) => {
 
             // Add book to batch if it's new
             if (!bookMap.has(sanitizedBookId) && row.title) { // Ensure title is not null
-                const bookRef = db.collection("books").doc(sanitizedBookId);
+                const bookRef = db.collection("users").doc(userId).collection("books").doc(sanitizedBookId);
                 batch.set(bookRef, {
                     title: row.title,
                     author: row.author,
@@ -80,19 +80,17 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2 }, async (event) => {
                     average_rating: row.average_rating,
                     rating_count: row.rating_count,
                     date_last_read: row.date_last_read,
-                    owner: userId,
                 });
                 bookMap.set(sanitizedBookId, true);
             }
 
             // Add highlight to batch
-            const highlightRef = db.collection("highlights").doc(sanitizedHighlightId);
+            const highlightRef = db.collection("users").doc(userId).collection("highlights").doc(sanitizedHighlightId);
             batch.set(highlightRef, {
                 book_id: sanitizedBookId,
                 text: row.text,
                 annotation: row.annotation,
                 date_created: row.date_created,
-                owner: userId,
                 color: row.color,
                 type: row.type,
             });
