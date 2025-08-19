@@ -12,6 +12,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const sortFilter = document.getElementById('sort-filter');
     const searchInput = document.getElementById('search-input');
     const userProfile = document.getElementById('user-profile');
+    const modal = document.getElementById('highlight-focus-modal');
+    const modalContent = document.getElementById('modal-highlight-content');
+    const closeButton = document.querySelector('.close-button');
+    const shareButton = document.getElementById('share-button');
     
     let allHighlights = [];
     let allBooks = [];
@@ -70,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const uploadBtn = document.createElement('button');
             uploadBtn.id = 'upload-btn';
             uploadBtn.textContent = 'Upload Highlights';
-            uploadBtn.addEventListener('click', () => window.location.href = 'upload.html');
+            uploadBtn.addEventListener('click', () => window.location.href = '/upload.html');
 
             const logoutBtn = document.createElement('button');
             logoutBtn.id = 'logout-btn';
@@ -132,31 +136,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const randomHighlightsContainer = document.getElementById('random-highlights-container');
             randomHighlightsContainer.innerHTML = '';
+            allHighlights = allHighlights.concat(enrichedHighlights.filter(eh => !allHighlights.some(ah => ah.highlight_id === eh.highlight_id)));
             enrichedHighlights.forEach(h => {
-                const highlightEl = document.createElement('div');
-                highlightEl.classList.add('highlight', `color-${h.color}`);
-
-                const titleEl = document.createElement('div');
-                titleEl.classList.add('book-title');
-                titleEl.innerHTML = `<span>${h.book_title}</span>`;
-                highlightEl.appendChild(titleEl);
-
-                const text = document.createElement('p');
-                text.textContent = h.text;
-                highlightEl.appendChild(text);
-
-                if (h.annotation) {
-                    const annotation = document.createElement('p');
-                    annotation.classList.add('annotation');
-                    annotation.textContent = h.annotation;
-                    highlightEl.appendChild(annotation);
-                }
-
-                const date = document.createElement('p');
-                date.classList.add('date');
-                date.textContent = new Date(h.date_created).toLocaleString();
-                highlightEl.appendChild(date);
-
+                const highlightEl = createHighlightElement(h);
                 randomHighlightsContainer.appendChild(highlightEl);
             });
 
@@ -193,6 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
             populateBookFilter(allBooks);
             createCharts(allHighlights, allBooks);
             filterAndSort();
+            checkForUrlHighlight();
 
         } catch (error) {
             console.error("Error loading user data from Firestore:", error);
@@ -233,6 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
             populateBookFilter(allBooks);
             createCharts(allHighlights, allBooks);
             filterAndSort();
+            checkForUrlHighlight();
 
         } catch (error) {
             console.error("Error loading data from Firestore:", error);
@@ -699,43 +683,59 @@ document.addEventListener('DOMContentLoaded', () => {
         timelineChart.update();
     }
 
+    function createHighlightElement(h, searchTerm = '') {
+        const highlightEl = document.createElement('div');
+        highlightEl.classList.add('highlight', `color-${h.color}`);
+        highlightEl.dataset.highlightId = h.highlight_id;
+
+        const titleEl = document.createElement('div');
+        titleEl.classList.add('book-title');
+        titleEl.innerHTML = `<span>${h.book_title}</span>`;
+        
+        const shareIcon = document.createElement('i');
+        shareIcon.classList.add('fas', 'fa-share-alt', 'share-icon');
+        shareIcon.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent opening the modal
+            shareHighlight(h.highlight_id);
+        });
+
+        titleEl.appendChild(shareIcon);
+        highlightEl.appendChild(titleEl);
+
+        const text = document.createElement('p');
+        if (searchTerm) {
+            const regex = new RegExp(`(${searchTerm})`, 'gi');
+            text.innerHTML = h.text.replace(regex, '<mark>$1</mark>');
+        } else {
+            text.textContent = h.text;
+        }
+        highlightEl.appendChild(text);
+
+        if (h.annotation) {
+            const annotation = document.createElement('p');
+            annotation.classList.add('annotation');
+            if (searchTerm) {
+                const regex = new RegExp(`(${searchTerm})`, 'gi');
+                annotation.innerHTML = h.annotation.replace(regex, '<mark>$1</mark>');
+            } else {
+                annotation.textContent = h.annotation;
+            }
+            highlightEl.appendChild(annotation);
+        }
+
+        const date = document.createElement('p');
+        date.classList.add('date');
+        date.textContent = new Date(h.date_created).toLocaleString();
+        highlightEl.appendChild(date);
+
+        highlightEl.addEventListener('click', () => openFocusModal(h));
+        return highlightEl;
+    }
+
     function displayHighlights(highlights, searchTerm = '') {
         highlightsContainer.innerHTML = '';
         highlights.forEach(h => {
-            const highlightEl = document.createElement('div');
-            highlightEl.classList.add('highlight', `color-${h.color}`);
-
-            const titleEl = document.createElement('div');
-            titleEl.classList.add('book-title');
-            titleEl.innerHTML = `<span>${h.book_title}</span>`;
-            highlightEl.appendChild(titleEl);
-
-            const text = document.createElement('p');
-            if (searchTerm) {
-                const regex = new RegExp(`(${searchTerm})`, 'gi');
-                text.innerHTML = h.text.replace(regex, '<mark>$1</mark>');
-            } else {
-                text.textContent = h.text;
-            }
-            highlightEl.appendChild(text);
-
-            if (h.annotation) {
-                const annotation = document.createElement('p');
-                annotation.classList.add('annotation');
-                if (searchTerm) {
-                    const regex = new RegExp(`(${searchTerm})`, 'gi');
-                    annotation.innerHTML = h.annotation.replace(regex, '<mark>$1</mark>');
-                } else {
-                    annotation.textContent = h.annotation;
-                }
-                highlightEl.appendChild(annotation);
-            }
-
-            const date = document.createElement('p');
-            date.classList.add('date');
-            date.textContent = new Date(h.date_created).toLocaleString();
-            highlightEl.appendChild(date);
-
+            const highlightEl = createHighlightElement(h, searchTerm);
             highlightsContainer.appendChild(highlightEl);
         });
     }
@@ -810,4 +810,120 @@ document.addEventListener('DOMContentLoaded', () => {
     if (searchInput) {
         searchInput.addEventListener('input', filterAndSort);
     }
+
+    // --- Modal Logic ---
+
+    function openFocusModal(highlight) {
+        modalContent.innerHTML = ''; // Clear previous content
+        
+        // Recreate the highlight structure inside the modal
+        const highlightEl = document.createElement('div');
+        highlightEl.classList.add('highlight', `color-${highlight.color}`);
+
+        const titleEl = document.createElement('div');
+        titleEl.classList.add('book-title');
+        titleEl.innerHTML = `<span>${highlight.book_title}</span>`;
+        highlightEl.appendChild(titleEl);
+
+        const text = document.createElement('p');
+        text.textContent = highlight.text;
+        highlightEl.appendChild(text);
+
+        if (highlight.annotation) {
+            const annotation = document.createElement('p');
+            annotation.classList.add('annotation');
+            annotation.textContent = highlight.annotation;
+            highlightEl.appendChild(annotation);
+        }
+
+        const date = document.createElement('p');
+        date.classList.add('date');
+        date.textContent = new Date(highlight.date_created).toLocaleString();
+        highlightEl.appendChild(date);
+
+        modalContent.appendChild(highlightEl);
+        modal.style.display = 'flex';
+
+        // Update URL
+        const url = new URL(window.location);
+        url.searchParams.set('highlight', highlight.highlight_id);
+        window.history.pushState({ highlightId: highlight.highlight_id }, '', url);
+
+        // Store current highlight for sharing
+        shareButton.dataset.highlightId = highlight.highlight_id;
+    }
+
+    function closeFocusModal() {
+        modal.style.display = 'none';
+        // Update URL
+        const url = new URL(window.location);
+        url.searchParams.delete('highlight');
+        window.history.pushState({}, '', url);
+    }
+
+    async function shareHighlight(highlightId) {
+        const highlight = allHighlights.find(h => h.highlight_id === highlightId);
+        if (!highlight) return;
+
+        const shareUrl = new URL(window.location);
+        shareUrl.searchParams.set('highlight', highlightId);
+
+        const shareData = {
+            title: `Highlight from ${highlight.book_title}`,
+            text: `"${highlight.text}"`,
+            url: shareUrl.href,
+        };
+
+        try {
+            if (navigator.share) {
+                await navigator.share(shareData);
+            } else {
+                // Fallback for browsers that don't support Web Share API
+                await navigator.clipboard.writeText(shareUrl.href);
+                alert('Link copied to clipboard!');
+            }
+        } catch (err) {
+            console.error('Error sharing:', err);
+            // Fallback if sharing fails
+            await navigator.clipboard.writeText(shareUrl.href);
+            alert('Sharing failed. Link copied to clipboard!');
+        }
+    }
+
+    function checkForUrlHighlight() {
+        const params = new URLSearchParams(window.location.search);
+        const highlightId = params.get('highlight');
+        if (highlightId && allHighlights.length > 0) {
+            const highlight = allHighlights.find(h => h.highlight_id === highlightId);
+            if (highlight) {
+                // Use a small timeout to ensure the UI is ready
+                setTimeout(() => {
+                    openFocusModal(highlight);
+                }, 100);
+            }
+        }
+    }
+
+    closeButton.addEventListener('click', closeFocusModal);
+    modal.addEventListener('click', (event) => {
+        if (event.target === modal) { // Clicked on the background
+            closeFocusModal();
+        }
+    });
+    shareButton.addEventListener('click', () => {
+        if (shareButton.dataset.highlightId) {
+            shareHighlight(shareButton.dataset.highlightId);
+        }
+    });
+
+    window.addEventListener('popstate', (event) => {
+        if (event.state && event.state.highlightId) {
+            const highlight = allHighlights.find(h => h.highlight_id === event.state.highlightId);
+            if (highlight) {
+                openFocusModal(highlight);
+            }
+        } else {
+            closeFocusModal();
+        }
+    });
 });

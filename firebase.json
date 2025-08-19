@@ -10,6 +10,10 @@
       {
         "source": "/user/**",
         "destination": "/index.html"
+      },
+      {
+        "source": "/upload",
+        "destination": "/upload.html"
       }
     ],
     "headers": [

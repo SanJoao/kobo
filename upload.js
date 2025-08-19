@@ -60,8 +60,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 uploadStatus.style.color = 'red';
             }, 
             () => {
-                uploadStatus.textContent = 'Upload complete! Your highlights will be processed shortly.';
+                uploadStatus.innerHTML = ''; // Clear previous status messages
                 uploadStatus.style.color = 'green';
+                
+                const message = document.createElement('p');
+                message.textContent = 'Upload complete! Your highlights will be processed shortly.';
+                uploadStatus.appendChild(message);
+
+                const profileButton = document.createElement('button');
+                profileButton.textContent = 'Go to Your Profile';
+                profileButton.id = 'go-to-profile';
+                profileButton.onclick = () => {
+                    window.location.href = `/user/${currentUser.uid}`;
+                };
+                
+                uploadStatus.appendChild(profileButton);
             }
         );
     }
