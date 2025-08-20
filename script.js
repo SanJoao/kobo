@@ -158,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ]);
 
             const books = booksSnapshot.docs.map(doc => ({ book_id: doc.id, ...doc.data() }));
-            const highlights = highlightsSnapshot.docs.map(doc => ({ highlight_id: doc.id, ...doc.data() }));
+            const highlights = highlightsSnapshot.docs.map(doc => ({ highlight_id: doc.id, user_id: userId, ...doc.data() }));
 
             const booksMap = new Map(books.map(book => [book.book_id, book]));
 
@@ -198,7 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ]);
 
                 books = books.concat(booksSnapshot.docs.map(doc => ({ book_id: doc.id, ...doc.data() })));
-                highlights = highlights.concat(highlightsSnapshot.docs.map(doc => ({ highlight_id: doc.id, ...doc.data() })));
+                highlights = highlights.concat(highlightsSnapshot.docs.map(doc => ({ highlight_id: doc.id, user_id: userDoc.id, ...doc.data() })));
             }
 
             const booksMap = new Map(books.map(book => [book.book_id, book]));
@@ -863,9 +863,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function shareHighlight(highlightId) {
         const highlight = allHighlights.find(h => h.highlight_id === highlightId);
-        if (!highlight) return;
+        if (!highlight || !highlight.user_id) {
+            console.error("Could not find highlight or user_id for sharing");
+            return;
+        }
 
-        const shareUrl = new URL(window.location);
+        const shareUrl = new URL(`/user/${highlight.user_id}`, window.location.origin);
         shareUrl.searchParams.set('highlight', highlightId);
 
         const shareData = {
