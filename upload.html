@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Koby - Upload</title>
-    <link rel="icon" href="assets/Isotype.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="/assets/Isotype.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .upload-container {
             max-width: 800px;
@@ -51,10 +52,7 @@
 </head>
 <body>
     <header>
-        <img src="assets/Imagotype.svg" alt="Koby Imagotype" style="height: 40px; margin-right: auto;">
-        <div id="user-profile">
-            <!-- This will be populated by script.js -->
-        </div>
+        <!-- Header content will be loaded dynamically -->
     </header>
 
     <div class="upload-container">
@@ -75,7 +73,8 @@
         <p id="upload-status"></p>
     </div>
 
-    <script type="module" src="script.js"></script>
-    <script type="module" src="upload.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/2.1.0/showdown.min.js"></script>
+    <script type="module" src="/script.js"></script>
+    <script type="module" src="/upload.js"></script>
 </body>
 </html>

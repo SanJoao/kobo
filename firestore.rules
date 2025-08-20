@@ -9,6 +9,8 @@ service cloud.firestore {
     // Allow public read access to all 'highlights' collections
     match /{path=**}/highlights/{highlightId} {
       allow read: if true;
+      allow update: if request.auth != null && 
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likeCount']);
     }
   }
 }

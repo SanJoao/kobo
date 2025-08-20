@@ -4,26 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Koby</title>
-    <link rel="icon" href="assets/Isotype.svg" type="image/svg+xml">
+    <link rel="icon" href="/assets/Isotype.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
     <header>
-        <img src="assets/Imagotype.svg" alt="Koby Imagotype" style="height: 40px; margin-right: auto;">
-        <div id="user-profile">
-            <!-- User profile info will be inserted here -->
-        </div>
+        <!-- Header content will be loaded dynamically -->
     </header>
     <main>
         <div id="profile-section" class="container" style="display: none;">
             <!-- Profile content will be injected here -->
         </div>
         <div id="landing-page" class="container" style="display: none;">
-            <img src="assets/Imagotype.svg" alt="Koby Imagotype" style="max-width: 200px; margin-bottom: 20px;">
+            <img src="/assets/Imagotype.svg" alt="Koby Imagotype" style="max-width: 200px; margin-bottom: 20px;">
             <h2>Welcome to Koby</h2>
             <p>This is a place to store, view, and share your Kobo e-reader highlights.</p>
             <p>Sign in to upload your highlights and create your personal collection. Or, browse the public highlights from all users.</p>
+            <button id="landing-upload-btn" class="btn-primary">Upload Highlights</button>
             <h3>Random Highlights</h3>
             <div id="random-highlights-container"></div>
         </div>

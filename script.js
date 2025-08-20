@@ -1,10 +1,11 @@
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
-import { collection, getDocs, query, where, collectionGroup, limit, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+import { collection, getDocs, query, where, collectionGroup, limit, doc, getDoc, runTransaction, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 import { auth, db } from "./firebase-init.js";
 import { loadProfile } from "./profile.js";
 const provider = new GoogleAuthProvider();
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadHeader();
     const highlightsContainer = document.getElementById('highlights-container');
     const bookFilter = document.getElementById('book-filter');
     const typeFilter = document.getElementById('type-filter');
@@ -19,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let allHighlights = [];
     let allBooks = [];
+    let usersData = {};
     let booksChart, colorsChart, timeSpentChart, timelineChart;
     let activeBookFilter = null;
     let activeColorFilter = null;
@@ -58,11 +60,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Authentication Logic ---
 
+    async function loadHeader() {
+        try {
+            const response = await fetch('/header.html');
+            const headerHTML = await response.text();
+            const headerElement = document.querySelector('header');
+            if (headerElement) {
+                headerElement.innerHTML = headerHTML;
+            } else {
+                // If no header exists, prepend it to the body
+                document.body.insertAdjacentHTML('afterbegin', headerHTML);
+            }
+        } catch (error) {
+            console.error('Error loading header:', error);
+        }
+    }
+
     const updateUI = (user) => {
         const userProfileContainer = document.getElementById('user-profile');
+        if (!userProfileContainer) return;
         userProfileContainer.innerHTML = ''; // Clear previous content
-
-        const h1 = document.querySelector('header h1');
 
         if (user) {
             // User is signed in
@@ -82,7 +99,6 @@ document.addEventListener('DOMContentLoaded', () => {
             logoutBtn.addEventListener('click', () => signOut(auth));
 
             userProfileContainer.append(userNameEl, uploadBtn, logoutBtn);
-            if (h1) h1.style.marginRight = 'auto';
 
         } else {
             // User is signed out
@@ -96,7 +112,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
             userProfileContainer.appendChild(loginBtn);
-            if (h1) h1.style.marginRight = 'auto';
         }
     };
 
@@ -110,10 +125,39 @@ document.addEventListener('DOMContentLoaded', () => {
         loadRandomHighlights();
     }
 
+    const landingUploadBtn = document.getElementById('landing-upload-btn');
+    if (landingUploadBtn) {
+        landingUploadBtn.addEventListener('click', () => {
+            const user = auth.currentUser;
+            if (user) {
+                window.location.href = '/upload.html';
+            } else {
+                alert('Please sign in to upload your highlights.');
+            }
+        });
+    }
+
     async function getBookForHighlight(highlight) {
         const bookRef = doc(db, `users/${highlight.user_id}/books/${highlight.book_id}`);
         const bookSnap = await getDoc(bookRef);
         return bookSnap.exists() ? bookSnap.data() : null;
+    }
+
+    async function getUsersData(userIds) {
+        const users = {};
+        const userIdsToFetch = [...new Set(userIds)].filter(id => !usersData[id]);
+    
+        if (userIdsToFetch.length > 0) {
+            const usersQuery = query(collection(db, 'users'), where('__name__', 'in', userIdsToFetch));
+            const usersSnapshot = await getDocs(usersQuery);
+            usersSnapshot.forEach(doc => {
+                users[doc.id] = doc.data();
+            });
+        }
+    
+        // Merge new users into the global usersData object
+        Object.assign(usersData, users);
+        return usersData;
     }
 
     async function loadRandomHighlights() {
@@ -129,9 +173,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const randomHighlights = highlights.sort(() => 0.5 - Math.random()).slice(0, 25);
 
+            const userIds = randomHighlights.map(h => h.user_id);
+            usersData = await getUsersData(userIds);
+
             const enrichedHighlights = await Promise.all(randomHighlights.map(async h => {
                 const book = await getBookForHighlight(h);
-                return { ...h, book_title: book ? book.title : 'Unknown Book' };
+                const user = usersData[h.user_id];
+                const nickname = user && user.profile ? user.profile.nickname : 'Anonymous';
+                return { ...h, book_title: book ? book.title : 'Unknown Book', user_nickname: nickname };
             }));
 
             const randomHighlightsContainer = document.getElementById('random-highlights-container');
@@ -683,7 +732,7 @@ document.addEventListener('DOMContentLoaded', () => {
         timelineChart.update();
     }
 
-    function createHighlightElement(h, searchTerm = '') {
+function createHighlightElement(h, searchTerm = '') {
         const highlightEl = document.createElement('div');
         highlightEl.classList.add('highlight', `color-${h.color}`);
         highlightEl.dataset.highlightId = h.highlight_id;
@@ -701,6 +750,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
         titleEl.appendChild(shareIcon);
         highlightEl.appendChild(titleEl);
+
+        const controlsEl = document.createElement('div');
+        controlsEl.classList.add('highlight-controls');
+
+        const likeButton = document.createElement('button');
+        likeButton.classList.add('like-btn');
+        const likeIcon = document.createElement('i');
+        likeIcon.classList.add('fas', 'fa-heart');
+        likeButton.appendChild(likeIcon);
+
+        const likeCount = document.createElement('span');
+        likeCount.classList.add('like-count');
+        likeCount.textContent = h.likeCount || 0;
+        likeButton.appendChild(likeCount);
+
+        const currentUser = auth.currentUser;
+        if (currentUser && h.likes && h.likes.includes(currentUser.uid)) {
+            likeButton.classList.add('liked');
+        }
+
+        likeButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleLike(h.highlight_id, h.user_id);
+        });
+
+        controlsEl.appendChild(likeButton);
 
         const text = document.createElement('p');
         if (searchTerm) {
@@ -723,13 +798,83 @@ document.addEventListener('DOMContentLoaded', () => {
             highlightEl.appendChild(annotation);
         }
 
+        const footerEl = document.createElement('div');
+        footerEl.classList.add('highlight-footer');
+
+        footerEl.appendChild(controlsEl);
+
+        const rightFooter = document.createElement('div');
+        rightFooter.classList.add('right-footer');
+
+        if (h.user_nickname) {
+            const sharedByEl = document.createElement('div');
+            sharedByEl.classList.add('shared-by');
+            
+            const userLink = document.createElement('a');
+            userLink.href = `/user/${h.user_id}`;
+            userLink.textContent = h.user_nickname;
+            
+            sharedByEl.append('Shared by: ', userLink);
+            rightFooter.appendChild(sharedByEl);
+        }
+
         const date = document.createElement('p');
         date.classList.add('date');
         date.textContent = new Date(h.date_created).toLocaleString();
-        highlightEl.appendChild(date);
+        rightFooter.appendChild(date);
+
+        footerEl.appendChild(rightFooter);
+
+        highlightEl.appendChild(footerEl);
 
         highlightEl.addEventListener('click', () => openFocusModal(h));
         return highlightEl;
+    }
+
+async function toggleLike(highlightId, authorId) {
+        const user = auth.currentUser;
+        if (!user) {
+            alert("You must be logged in to like a highlight.");
+            return;
+        }
+
+        const highlightRef = doc(db, `users/${authorId}/highlights/${highlightId}`);
+        const likeButton = document.querySelector(`.highlight[data-highlight-id="${highlightId}"] .like-btn`);
+        const likeCountSpan = document.querySelector(`.highlight[data-highlight-id="${highlightId}"] .like-count`);
+
+        try {
+            await runTransaction(db, async (transaction) => {
+                const highlightDoc = await transaction.get(highlightRef);
+                if (!highlightDoc.exists()) {
+                    throw "Document does not exist!";
+                }
+
+                const data = highlightDoc.data();
+                const likes = data.likes || [];
+                const likeCount = data.likeCount || 0;
+                const userIndex = likes.indexOf(user.uid);
+
+                if (userIndex === -1) {
+                    // Like the highlight
+                    transaction.update(highlightRef, {
+                        likes: arrayUnion(user.uid),
+                        likeCount: likeCount + 1
+                    });
+                    if (likeButton) likeButton.classList.add('liked');
+                    if (likeCountSpan) likeCountSpan.textContent = likeCount + 1;
+                } else {
+                    // Unlike the highlight
+                    transaction.update(highlightRef, {
+                        likes: arrayRemove(user.uid),
+                        likeCount: likeCount - 1
+                    });
+                    if (likeButton) likeButton.classList.remove('liked');
+                    if (likeCountSpan) likeCountSpan.textContent = likeCount - 1;
+                }
+            });
+        } catch (error) {
+            console.error("Like transaction failed: ", error);
+        }
     }
 
     function displayHighlights(highlights, searchTerm = '') {
@@ -929,4 +1074,8 @@ document.addEventListener('DOMContentLoaded', () => {
             closeFocusModal();
         }
     });
+
+    // Make functions globally available
+    window.createHighlightElement = createHighlightElement;
+    window.toggleLike = toggleLike;
 });
