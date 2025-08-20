@@ -186,6 +186,7 @@ async function loadLikedHighlights(userId) {
     const container = document.getElementById('liked-highlights-container');
     if (!container) return;
     container.innerHTML = '<p>Loading liked highlights...</p>';
+    container.classList.add('masonry'); // Apply masonry layout
 
     try {
         const highlightsQuery = query(collectionGroup(db, 'highlights'), where('likes', 'array-contains', userId));

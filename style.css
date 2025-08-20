@@ -38,11 +38,37 @@ h1 {
 }
 
 #highlights-container,
-#random-highlights-container,
+#trending-highlights-container,
 #liked-highlights-container {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 20px;
+}
+
+.hero-section, .social-proof-section, .how-it-works-section {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.social-proof-section h3, .how-it-works-section h3 {
+    margin-bottom: 20px;
+}
+
+.steps {
+    display: flex;
+    justify-content: space-around;
+    gap: 20px;
+}
+
+.step {
+    flex: 1;
+    padding: 20px;
+}
+
+.step i {
+    font-size: 2.5em;
+    margin-bottom: 10px;
+    color: #007bff;
 }
 
 .highlight {
@@ -335,6 +361,29 @@ header h1 {
 
 #edit-profile-btn, #cancel-edit-btn {
     margin-top: 1rem;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+#edit-profile-btn {
+    background-color: #007bff;
+    color: white;
+}
+
+#edit-profile-btn:hover {
+    background-color: #0056b3;
+}
+
+#cancel-edit-btn {
+    background-color: #6c757d;
+    color: white;
+}
+
+#cancel-edit-btn:hover {
+    background-color: #5a6268;
 }
 
 #profile-form {
@@ -460,4 +509,190 @@ header h1 {
 
 #landing-upload-btn:hover {
     background-color: #0056b3;
+}
+
+/* Dark Mode */
+body.dark-mode {
+    background-color: #121212;
+    color: #e0e0e0;
+}
+
+body.dark-mode .container {
+    background: #1e1e1e;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+}
+
+body.dark-mode h1, body.dark-mode h2, body.dark-mode h3, body.dark-mode h4 {
+    color: #e0e0e0;
+}
+
+body.dark-mode .filters {
+    background: #2a2a2a;
+}
+
+body.dark-mode .filters select, body.dark-mode .filters input {
+    background: #333;
+    color: #e0e0e0;
+    border-color: #444;
+}
+
+body.dark-mode .highlight {
+    background: #2a2a2a;
+}
+
+body.dark-mode .highlight .book-title {
+    color: #e0e0e0;
+}
+
+body.dark-mode .share-icon {
+    color: #ccc;
+}
+
+body.dark-mode .like-btn {
+    color: #ccc;
+}
+
+body.dark-mode .like-btn.liked .fa-heart {
+    color: #e91e63;
+}
+
+body.dark-mode .like-count {
+    color: #aaa;
+}
+
+body.dark-mode .shared-by a {
+    color: #1e90ff;
+}
+
+body.dark-mode .highlight .annotation {
+    color: #bbb;
+    border-left-color: #555;
+}
+
+body.dark-mode .highlight .date {
+    color: #888;
+}
+
+body.dark-mode header {
+    background-color: #1e1e1e;
+    border-bottom-color: #333;
+}
+
+body.dark-mode #user-profile a {
+    color: #e0e0e0;
+}
+
+body.dark-mode .modal-content {
+    background-color: #2a2a2a;
+}
+
+body.dark-mode .close-button {
+    color: #ccc;
+}
+
+body.dark-mode .close-button:hover,
+body.dark-mode .close-button:focus {
+    color: white;
+}
+
+body.dark-mode #profile-section {
+    background-color: #2a2a2a;
+}
+
+body.dark-mode #profile-social a {
+    color: #1e90ff;
+}
+
+body.dark-mode .tab-link {
+    color: #e0e0e0;
+}
+
+body.dark-mode .tab-link.active {
+    border-bottom-color: #1e90ff;
+}
+
+body.dark-mode #profile-form input[type="text"],
+body.dark-mode #profile-form input[type="url"],
+body.dark-mode #profile-form textarea {
+    background-color: #333;
+    color: #e0e0e0;
+    border-color: #444;
+}
+
+body.dark-mode #char-counter {
+    color: #aaa;
+}
+
+body.dark-mode #profile-form button[type="submit"] {
+    background-color: #006400; /* Darker Green */
+}
+
+body.dark-mode #profile-form button[type="submit"]:hover {
+    background-color: #004d00;
+}
+
+body.dark-mode .chart-container {
+    background: #1e1e1e;
+}
+
+body.dark-mode .upload-container {
+    background: #1e1e1e;
+    box-shadow: 0 0 15px rgba(0,0,0,0.5);
+}
+
+body.dark-mode .instructions {
+    background-color: #2a2a2a;
+    border-color: #444;
+}
+
+.dark-mode-toggle {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 50px;
+    height: 50px;
+    background-color: #333;
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    z-index: 1001;
+}
+
+body.dark-mode .dark-mode-toggle {
+    background-color: #f4f4f4;
+    color: #333;
+}
+
+/* Masonry Layout */
+#highlights-container.masonry, #trending-highlights-container.masonry {
+    display: block;
+    column-count: 3;
+}
+
+#highlights-container.masonry .highlight, #trending-highlights-container.masonry .highlight {
+    display: inline-block;
+    margin-bottom: 20px;
+    break-inside: avoid;
+}
+
+@media (max-width: 992px) {
+    #highlights-container.masonry, #trending-highlights-container.masonry {
+        column-count: 2;
+    }
+}
+
+@media (max-width: 768px) {
+    #highlights-container.masonry, #trending-highlights-container.masonry {
+        column-count: 1;
+    }
+}
+
+#loading-indicator {
+    text-align: center;
+    padding: 20px;
+    font-size: 1.2em;
+    color: #777;
 }

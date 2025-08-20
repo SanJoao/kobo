@@ -1,5 +1,5 @@
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
-import { collection, getDocs, query, where, collectionGroup, limit, doc, getDoc, runTransaction, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+import { collection, getDocs, query, where, collectionGroup, limit, doc, getDoc, runTransaction, arrayUnion, arrayRemove, orderBy, startAfter } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 import { auth, db } from "./firebase-init.js";
 import { loadProfile } from "./profile.js";
 const provider = new GoogleAuthProvider();
@@ -24,6 +24,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     let booksChart, colorsChart, timeSpentChart, timelineChart;
     let activeBookFilter = null;
     let activeColorFilter = null;
+    let isLoading = false;
+    let allLandingHighlights = [];
+    let landingHighlightsOffset = 0;
 
     const colorMap = {
         0: { name: 'Yellow', bg: 'rgba(255, 235, 59, 0.7)', border: 'rgba(255, 235, 59, 1)' },
@@ -76,7 +79,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    const updateUI = (user) => {
+    const updateUI = async (user) => {
         const userProfileContainer = document.getElementById('user-profile');
         if (!userProfileContainer) return;
         userProfileContainer.innerHTML = ''; // Clear previous content
@@ -86,7 +89,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             const userNameEl = document.createElement('a');
             userNameEl.href = `/user/${user.uid}`;
             userNameEl.id = 'user-name';
-            userNameEl.textContent = user.displayName;
+            
+            // Fetch user's nickname from Firestore
+            const userDocRef = doc(db, "users", user.uid);
+            const userDocSnap = await getDoc(userDocRef);
+            if (userDocSnap.exists() && userDocSnap.data().profile && userDocSnap.data().profile.nickname) {
+                userNameEl.textContent = userDocSnap.data().profile.nickname;
+            } else {
+                userNameEl.textContent = user.displayName;
+            }
 
             const uploadBtn = document.createElement('button');
             uploadBtn.id = 'upload-btn';
@@ -120,9 +131,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         handleRouting(); // Re-route after auth state changes
     });
 
-    // Load random highlights on the landing page when the DOM is ready.
+    // Load data for the landing page when the DOM is ready.
     if (window.location.pathname === '/' || window.location.pathname === '/index.html') {
-        loadRandomHighlights();
+        loadLandingPageHighlights();
+        loadSocialProof();
     }
 
     const landingUploadBtn = document.getElementById('landing-upload-btn');
@@ -136,6 +148,47 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
     }
+
+    // --- Dark Mode ---
+    const darkModeToggle = document.querySelector('.dark-mode-toggle');
+    const imagotypeImg = document.getElementById('imagotype-img');
+    const headerImagotypeImg = document.getElementById('header-imagotype-img');
+
+    const updateImagotype = () => {
+        const isDarkMode = document.body.classList.contains('dark-mode');
+        if (imagotypeImg) {
+            imagotypeImg.src = isDarkMode ? '/assets/ImagotypeWhite.svg' : '/assets/Imagotype.svg';
+        }
+        if (headerImagotypeImg) {
+            headerImagotypeImg.src = isDarkMode ? '/assets/ImagotypeWhite.svg' : '/assets/Imagotype.svg';
+        }
+    };
+
+    if (darkModeToggle) {
+        darkModeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            const isDarkMode = document.body.classList.contains('dark-mode');
+            localStorage.setItem('darkMode', isDarkMode);
+            darkModeToggle.innerHTML = isDarkMode ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+            updateImagotype();
+            // Re-render charts with the correct theme
+            if (allHighlights.length > 0) {
+                createCharts(allHighlights, allBooks);
+            }
+        });
+    }
+
+    // Check for saved dark mode preference
+    if (localStorage.getItem('darkMode') === 'true') {
+        document.body.classList.add('dark-mode');
+        if (darkModeToggle) {
+            darkModeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+        }
+    }
+
+    // Initial imagotype check
+    updateImagotype();
+
 
     async function getBookForHighlight(highlight) {
         const bookRef = doc(db, `users/${highlight.user_id}/books/${highlight.book_id}`);
@@ -160,41 +213,83 @@ document.addEventListener('DOMContentLoaded', async () => {
         return usersData;
     }
 
-    async function loadRandomHighlights() {
+    async function loadSocialProof() {
         try {
-            const highlightsQuery = query(collectionGroup(db, 'highlights'), limit(25));
-            const highlightsSnapshot = await getDocs(highlightsQuery);
-            
-            let highlights = highlightsSnapshot.docs.map(doc => ({
-                highlight_id: doc.id,
-                user_id: doc.ref.parent.parent.id,
-                ...doc.data()
-            }));
+            const usersSnapshot = await getDocs(collection(db, 'users'));
+            const userCount = usersSnapshot.size;
+            document.getElementById('user-count').textContent = userCount;
 
-            const randomHighlights = highlights.sort(() => 0.5 - Math.random()).slice(0, 25);
+            // This is a simple way to count highlights. For large datasets, a counter in Firestore would be better.
+            const highlightsSnapshot = await getDocs(collectionGroup(db, 'highlights'));
+            const highlightCount = highlightsSnapshot.size;
+            document.getElementById('highlight-count').textContent = highlightCount;
 
-            const userIds = randomHighlights.map(h => h.user_id);
-            usersData = await getUsersData(userIds);
+        } catch (error) {
+            console.error("Error loading social proof data:", error);
+        }
+    }
 
-            const enrichedHighlights = await Promise.all(randomHighlights.map(async h => {
+    async function loadLandingPageHighlights() {
+        if (isLoading) return;
+        isLoading = true;
+        const loadingIndicator = document.getElementById('loading-indicator');
+        if (loadingIndicator) loadingIndicator.style.display = 'block';
+
+        try {
+            // Initial fetch of all highlights
+            if (allLandingHighlights.length === 0) {
+                const highlightsQuery = query(collectionGroup(db, 'highlights'), limit(100));
+                const highlightsSnapshot = await getDocs(highlightsQuery);
+                
+                let highlights = highlightsSnapshot.docs.map(doc => ({
+                    highlight_id: doc.id,
+                    user_id: doc.ref.parent.parent.id,
+                    ...doc.data()
+                }));
+
+                const popularHighlights = highlights.sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0)).slice(0, 50);
+                allLandingHighlights = popularHighlights.sort(() => 0.5 - Math.random());
+            }
+
+            // Paginated display
+            const highlightsToDisplay = allLandingHighlights.slice(landingHighlightsOffset, landingHighlightsOffset + 12);
+            landingHighlightsOffset += 12;
+
+            const userIds = highlightsToDisplay.map(h => h.user_id);
+            await getUsersData(userIds);
+
+            const enrichedHighlights = await Promise.all(highlightsToDisplay.map(async h => {
                 const book = await getBookForHighlight(h);
                 const user = usersData[h.user_id];
                 const nickname = user && user.profile ? user.profile.nickname : 'Anonymous';
                 return { ...h, book_title: book ? book.title : 'Unknown Book', user_nickname: nickname };
             }));
 
-            const randomHighlightsContainer = document.getElementById('random-highlights-container');
-            randomHighlightsContainer.innerHTML = '';
-            allHighlights = allHighlights.concat(enrichedHighlights.filter(eh => !allHighlights.some(ah => ah.highlight_id === eh.highlight_id)));
+            const trendingHighlightsContainer = document.getElementById('trending-highlights-container');
+            if (!trendingHighlightsContainer.classList.contains('masonry')) {
+                trendingHighlightsContainer.classList.add('masonry');
+            }
+            
             enrichedHighlights.forEach(h => {
                 const highlightEl = createHighlightElement(h);
-                randomHighlightsContainer.appendChild(highlightEl);
+                trendingHighlightsContainer.appendChild(highlightEl);
             });
 
         } catch (error) {
-            console.error("Error loading random highlights:", error);
+            console.error("Error loading landing page highlights:", error);
+        } finally {
+            if (loadingIndicator) loadingIndicator.style.display = 'none';
+            isLoading = false;
         }
     }
+
+    window.addEventListener('scroll', () => {
+        if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 500 && !isLoading) {
+            if (landingHighlightsOffset < allLandingHighlights.length) {
+                loadLandingPageHighlights();
+            }
+        }
+    });
 
     async function loadUserData(userId) {
         try {
@@ -289,6 +384,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (timeSpentChart) timeSpentChart.destroy();
         if (timelineChart) timelineChart.destroy();
 
+        const isDarkMode = document.body.classList.contains('dark-mode');
+        const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+        const textColor = isDarkMode ? '#e0e0e0' : '#333';
+
         const booksCtx = document.getElementById('books-chart').getContext('2d');
         const colorsCtx = document.getElementById('colors-chart').getContext('2d');
         const timeSpentCtx = document.getElementById('time-spent-chart').getContext('2d');
@@ -321,7 +420,34 @@ document.addEventListener('DOMContentLoaded', async () => {
                 maintainAspectRatio: false,
                 plugins: {
                     legend: { display: false },
-                    title: { display: true, text: `Time Spent Reading (Total: ${(totalTime / 3600).toFixed(2)} hours)` }
+                    title: { 
+                        display: true, 
+                        text: `Time Spent Reading (Total: ${(totalTime / 3600).toFixed(2)} hours)`,
+                        color: textColor 
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: textColor },
+                        grid: { color: gridColor }
+                    },
+                    y: {
+                        ticks: { color: textColor },
+                        grid: { color: gridColor }
+                    }
+                },
+                onClick: (evt, elements) => {
+                    if (elements.length > 0) {
+                        const clickedBook = timeSpentChart.data.labels[elements[0].index];
+                        if (activeBookFilter === clickedBook) {
+                            bookFilter.value = 'all';
+                            activeBookFilter = null;
+                        } else {
+                            bookFilter.value = clickedBook;
+                            activeBookFilter = clickedBook;
+                        }
+                        filterAndSort();
+                    }
                 }
             }
         });
@@ -351,7 +477,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                 maintainAspectRatio: false,
                 plugins: {
                     legend: { display: false },
-                    title: { display: true, text: `Highlights by Book (Total: ${totalHighlights})` }
+                    title: { 
+                        display: true, 
+                        text: `Highlights by Book (Total: ${totalHighlights})`,
+                        color: textColor
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: textColor },
+                        grid: { color: gridColor }
+                    },
+                    y: {
+                        ticks: { color: textColor },
+                        grid: { color: gridColor }
+                    }
                 },
                 onClick: (evt, elements) => {
                     if (elements.length > 0) {
@@ -389,8 +529,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { position: 'top' },
-                    title: { display: true, text: 'Highlights by Color' }
+                    legend: { 
+                        position: 'top',
+                        labels: { color: textColor }
+                    },
+                    title: { 
+                        display: true, 
+                        text: 'Highlights by Color',
+                        color: textColor
+                    }
                 },
                 onClick: (evt, elements) => {
                     if (elements.length > 0) {
@@ -467,14 +614,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                 scales: {
                     x: {
                         stacked: true,
+                        ticks: { color: textColor },
+                        grid: { color: gridColor }
                     },
                     y: {
-                        stacked: true
+                        stacked: true,
+                        ticks: { color: textColor },
+                        grid: { color: gridColor }
                     }
                 },
                 plugins: {
-                    legend: { display: true },
-                    title: { display: true, text: 'Highlights Timeline' },
+                    legend: { 
+                        display: true,
+                        labels: { color: textColor }
+                    },
+                    title: { 
+                        display: true, 
+                        text: 'Highlights Timeline',
+                        color: textColor
+                    },
                     tooltip: {
                         enabled: false,
                         mode: 'index',
@@ -879,6 +1037,7 @@ async function toggleLike(highlightId, authorId) {
 
     function displayHighlights(highlights, searchTerm = '') {
         highlightsContainer.innerHTML = '';
+        highlightsContainer.classList.add('masonry'); // Apply masonry layout
         highlights.forEach(h => {
             const highlightEl = createHighlightElement(h, searchTerm);
             highlightsContainer.appendChild(highlightEl);
@@ -923,6 +1082,8 @@ async function toggleLike(highlightId, authorId) {
             filteredHighlights.sort((a, b) => new Date(a.date_created) - new Date(b.date_created));
         } else if (sortBy === 'book_asc') {
             filteredHighlights.sort((a, b) => a.book_title.localeCompare(b.book_title));
+        } else if (sortBy === 'likes_desc') {
+            filteredHighlights.sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0));
         } else if (sortBy === 'random') {
             for (let i = filteredHighlights.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));

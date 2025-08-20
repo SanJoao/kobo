@@ -17,13 +17,42 @@
             <!-- Profile content will be injected here -->
         </div>
         <div id="landing-page" class="container" style="display: none;">
-            <img src="/assets/Imagotype.svg" alt="Koby Imagotype" style="max-width: 200px; margin-bottom: 20px;">
-            <h2>Welcome to Koby</h2>
-            <p>This is a place to store, view, and share your Kobo e-reader highlights.</p>
-            <p>Sign in to upload your highlights and create your personal collection. Or, browse the public highlights from all users.</p>
-            <button id="landing-upload-btn" class="btn-primary">Upload Highlights</button>
-            <h3>Random Highlights</h3>
-            <div id="random-highlights-container"></div>
+            <div class="hero-section">
+                <img src="/assets/Imagotype.svg" alt="Koby Imagotype" id="imagotype-img" style="max-width: 200px; margin-bottom: 20px;">
+                <h2>Welcome to Koby</h2>
+                <p>Your personal space to store, view, and share your Kobo e-reader highlights.</p>
+                <button id="landing-upload-btn" class="btn-primary">Upload Your Highlights</button>
+            </div>
+
+            <div class="social-proof-section">
+                <h3>Join a community of avid readers!</h3>
+                <p><span id="user-count">...</span> users and <span id="highlight-count">...</span> highlights shared.</p>
+            </div>
+
+            <div class="how-it-works-section">
+                <h3>How It Works</h3>
+                <div class="steps">
+                    <div class="step">
+                        <i class="fas fa-upload"></i>
+                        <h4>1. Upload</h4>
+                        <p>Easily upload your Kobo highlights file.</p>
+                    </div>
+                    <div class="step">
+                        <i class="fas fa-chart-bar"></i>
+                        <h4>2. Get Insights</h4>
+                        <p>Visualize your reading habits and stats.</p>
+                    </div>
+                    <div class="step">
+                        <i class="fas fa-share-alt"></i>
+                        <h4>3. Share</h4>
+                        <p>Share your favorite highlights with the world.</p>
+                    </div>
+                </div>
+            </div>
+
+            <h3>Trending Highlights</h3>
+            <div id="trending-highlights-container"></div>
+            <div id="loading-indicator" style="display: none;">Loading...</div>
         </div>
         <div id="main-content" class="container">
         <div id="dashboard">
@@ -66,6 +95,7 @@
             </select>
             <select id="sort-filter">
                 <option value="random" selected>Random</option>
+                <option value="likes_desc">Likes</option>
                 <option value="date_desc">Newest First</option>
                 <option value="date_asc">Oldest First</option>
                 <option value="book_asc">By Book (A-Z)</option>
@@ -73,6 +103,9 @@
             <input type="text" id="search-input" placeholder="Search highlights...">
         </div>
         <div id="highlights-container"></div>
+        </div>
+        <div class="dark-mode-toggle">
+            <i class="fas fa-moon"></i>
         </div>
     </main>
 
