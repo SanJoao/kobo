@@ -8,6 +8,7 @@ const os = require("os");
 const path = require("path");
 const fs = require("fs");
 const logger = require("firebase-functions/logger");
+const crypto = require("crypto");
 
 admin.initializeApp();
 
@@ -63,7 +64,10 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2 }, async (event) => {
 
         results.forEach(row => {
             const sanitizedBookId = row.book_id.replace(/\//g, "__");
-            const sanitizedHighlightId = row.highlight_id.replace(/\//g, "__");
+
+            // Create a unique ID based on content
+            const uniqueString = `${userId}-${sanitizedBookId}-${row.text}`;
+            const sanitizedHighlightId = crypto.createHash('sha1').update(uniqueString).digest('hex');
 
             // Add book to batch if it's new
             if (!bookMap.has(sanitizedBookId) && row.title) { // Ensure title is not null
@@ -93,7 +97,7 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2 }, async (event) => {
                 date_created: row.date_created,
                 color: row.color,
                 type: row.type,
-            });
+            }, { merge: true });
         });
 
         await batch.commit();

@@ -234,37 +234,58 @@ document.addEventListener('DOMContentLoaded', async () => {
         isLoading = true;
         const loadingIndicator = document.getElementById('loading-indicator');
         if (loadingIndicator) loadingIndicator.style.display = 'block';
-
+    
         try {
-            // Initial fetch of all highlights
+            // Fetch highlights from all users to ensure diversity
             if (allLandingHighlights.length === 0) {
-                const highlightsQuery = query(collectionGroup(db, 'highlights'), limit(100));
-                const highlightsSnapshot = await getDocs(highlightsQuery);
+                const usersSnapshot = await getDocs(collection(db, 'users'));
+                const userIds = usersSnapshot.docs.map(doc => doc.id);
+    
+                const highlightsPerUser = 10;
+                const promises = userIds.map(userId => {
+                    const userHighlightsQuery = query(
+                        collection(db, `users/${userId}/highlights`),
+                        limit(highlightsPerUser)
+                    );
+                    return getDocs(userHighlightsQuery);
+                });
+    
+                const snapshots = await Promise.all(promises);
+                let highlights = [];
+                snapshots.forEach((snapshot, index) => {
+                    const userId = userIds[index];
+                    snapshot.forEach(doc => {
+                        highlights.push({
+                            highlight_id: doc.id,
+                            user_id: userId,
+                            ...doc.data()
+                        });
+                    });
+                });
+    
+                // Shuffle the combined highlights
+                for (let i = highlights.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [highlights[i], highlights[j]] = [highlights[j], highlights[i]];
+                }
                 
-                let highlights = highlightsSnapshot.docs.map(doc => ({
-                    highlight_id: doc.id,
-                    user_id: doc.ref.parent.parent.id,
-                    ...doc.data()
-                }));
-
-                const popularHighlights = highlights.sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0)).slice(0, 50);
-                allLandingHighlights = popularHighlights.sort(() => 0.5 - Math.random());
+                allLandingHighlights = highlights;
             }
-
+    
             // Paginated display
             const highlightsToDisplay = allLandingHighlights.slice(landingHighlightsOffset, landingHighlightsOffset + 12);
             landingHighlightsOffset += 12;
-
+    
             const userIds = highlightsToDisplay.map(h => h.user_id);
             await getUsersData(userIds);
-
+    
             const enrichedHighlights = await Promise.all(highlightsToDisplay.map(async h => {
                 const book = await getBookForHighlight(h);
                 const user = usersData[h.user_id];
                 const nickname = user && user.profile ? user.profile.nickname : 'Anonymous';
                 return { ...h, book_title: book ? book.title : 'Unknown Book', user_nickname: nickname };
             }));
-
+    
             const trendingHighlightsContainer = document.getElementById('trending-highlights-container');
             if (!trendingHighlightsContainer.classList.contains('masonry')) {
                 trendingHighlightsContainer.classList.add('masonry');
@@ -274,7 +295,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const highlightEl = createHighlightElement(h);
                 trendingHighlightsContainer.appendChild(highlightEl);
             });
-
+    
         } catch (error) {
             console.error("Error loading landing page highlights:", error);
         } finally {
@@ -1168,7 +1189,11 @@ async function toggleLike(highlightId, authorId) {
     }
 
     async function shareHighlight(highlightId) {
-        const highlight = allHighlights.find(h => h.highlight_id === highlightId);
+        let highlight = allHighlights.find(h => h.highlight_id === highlightId);
+        if (!highlight) {
+            highlight = allLandingHighlights.find(h => h.highlight_id === highlightId);
+        }
+
         if (!highlight || !highlight.user_id) {
             console.error("Could not find highlight or user_id for sharing");
             return;
