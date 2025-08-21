@@ -42,6 +42,12 @@ function renderProfile(data, isOwner) {
                 ${data.reddit ? `<a href="${data.reddit}" target="_blank"><i class="fab fa-reddit"></i></a>` : ''}
                 ${data.tiktok ? `<a href="${data.tiktok}" target="_blank"><i class="fab fa-tiktok"></i></a>` : ''}
                 ${data.youtube ? `<a href="${data.youtube}" target="_blank"><i class="fab fa-youtube"></i></a>` : ''}
+                ${data.goodreads ? `<a href="${data.goodreads}" target="_blank"><i class="fab fa-goodreads"></i></a>` : ''}
+                ${data.storygraph ? `<a href="${data.storygraph}" target="_blank"><i class="fas fa-chart-line"></i></a>` : ''}
+                ${data.librarything ? `<a href="${data.librarything}" target="_blank"><i class="fas fa-book-open"></i></a>` : ''}
+                ${data.bookbub ? `<a href="${data.bookbub}" target="_blank"><i class="fas fa-bold"></i></a>` : ''}
+                ${data.litsy ? `<a href="${data.litsy}" target="_blank"><i class="fas fa-leaf"></i></a>` : ''}
+                ${data.fable ? `<a href="${data.fable}" target="_blank"><i class="fas fa-feather-alt"></i></a>` : ''}
             </div>
             ${isOwner ? '<button id="edit-profile-btn">Edit Profile</button>' : ''}
         </div>
@@ -85,6 +91,24 @@ function renderProfile(data, isOwner) {
 
                 <label for="youtube">YouTube:</label>
                 <input type="url" id="youtube" name="youtube" placeholder="https://youtube.com/c/username" value="${data.youtube || ''}">
+
+                <label for="goodreads">Goodreads:</label>
+                <input type="url" id="goodreads" name="goodreads" placeholder="https://www.goodreads.com/user/show/..." value="${data.goodreads || ''}">
+
+                <label for="storygraph">StoryGraph:</label>
+                <input type="url" id="storygraph" name="storygraph" placeholder="https://app.thestorygraph.com/profile/..." value="${data.storygraph || ''}">
+
+                <label for="librarything">LibraryThing:</label>
+                <input type="url" id="librarything" name="librarything" placeholder="https://www.librarything.com/profile/..." value="${data.librarything || ''}">
+
+                <label for="bookbub">BookBub:</label>
+                <input type="url" id="bookbub" name="bookbub" placeholder="https://www.bookbub.com/profile/..." value="${data.bookbub || ''}">
+
+                <label for="litsy">Litsy:</label>
+                <input type="url" id="litsy" name="litsy" placeholder="https://www.litsy.com/p/..." value="${data.litsy || ''}">
+
+                <label for="fable">Fable:</label>
+                <input type="url" id="fable" name="fable" placeholder="https://fable.co/profile/..." value="${data.fable || ''}">
 
                 <button type="submit">Save Profile</button>
                 <button type="button" id="cancel-edit-btn">Cancel</button>
@@ -130,6 +154,12 @@ function renderProfile(data, isOwner) {
                 reddit: formData.get('reddit'),
                 tiktok: formData.get('tiktok'),
                 youtube: formData.get('youtube'),
+                goodreads: formData.get('goodreads'),
+                storygraph: formData.get('storygraph'),
+                librarything: formData.get('librarything'),
+                bookbub: formData.get('bookbub'),
+                litsy: formData.get('litsy'),
+                fable: formData.get('fable'),
             };
 
             const user = auth.currentUser;
