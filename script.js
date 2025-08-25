@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         1: { name: 'Pink', bg: 'rgba(233, 30, 99, 0.7)', border: 'rgba(233, 30, 99, 1)' },
         2: { name: 'Blue', bg: 'rgba(33, 150, 243, 0.7)', border: 'rgba(33, 150, 243, 1)' },
         3: { name: 'Green', bg: 'rgba(76, 175, 80, 0.7)', border: 'rgba(76, 175, 80, 1)' },
+        4: { name: 'No Color', bg: 'rgba(158, 158, 158, 0.7)', border: 'rgba(158, 158, 158, 1)' }, // Added for highlights without color
     };
 
     // --- Routing ---
@@ -426,8 +427,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const timelineCtx = document.getElementById('timeline-chart').getContext('2d');
 
         // Time Spent Chart (now based on allBooks)
-        const sortedBooksByTime = books.sort((a, b) => b.time_spent_reading - a.time_spent_reading);
-        const totalTime = books.reduce((sum, book) => sum + (book.time_spent_reading || 0), 0);
+        const booksWithProgress = books.filter(book => (book.percent_read || 0) > 0.5);
+        const sortedBooksByTime = booksWithProgress.sort((a, b) => b.time_spent_reading - a.time_spent_reading);
+        const totalTime = booksWithProgress.reduce((sum, book) => sum + (book.time_spent_reading || 0), 0);
 
         const statusData = {
             completed: { label: 'Completed', data: [], backgroundColor: colorMap[3].bg },
@@ -870,8 +872,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     function updateCharts(highlights) {
         // Update Time Spent Chart - This should be independent of highlight filters
         if (timeSpentChart) {
-            const sortedBooksByTime = allBooks.sort((a, b) => b.time_spent_reading - a.time_spent_reading);
-            const totalTime = allBooks.reduce((sum, book) => sum + (book.time_spent_reading || 0), 0);
+            const booksWithProgress = allBooks.filter(book => (book.percent_read || 0) > 0.5);
+            const sortedBooksByTime = booksWithProgress.sort((a, b) => b.time_spent_reading - a.time_spent_reading);
+            const totalTime = booksWithProgress.reduce((sum, book) => sum + (book.time_spent_reading || 0), 0);
 
             const statusData = {
                 completed: { data: [] },

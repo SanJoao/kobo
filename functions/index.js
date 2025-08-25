@@ -12,7 +12,7 @@ const crypto = require("crypto");
 
 admin.initializeApp();
 
-exports.processKoboDB = onObjectFinalized({ cpu: 2 }, async (event) => {
+exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (event) => {
     const fileBucket = event.data.bucket;
     const filePath = event.data.name;
 
@@ -37,8 +37,14 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2 }, async (event) => {
             driver: sqlite3.Database,
         });
 
-        // 1. Get all books first
-        const books = await sqliteDb.all(`
+        let batch = db.batch();
+        let operationCount = 0;
+        let bookCount = 0;
+        let highlightCount = 0;
+        const BATCH_LIMIT = 490;
+
+        // 1. Process books in a streaming fashion
+        const bookQuery = `
             SELECT
                 ContentID as book_id,
                 Title as title,
@@ -53,72 +59,80 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2 }, async (event) => {
                 DateLastRead as date_last_read
             FROM content
             WHERE ContentType = 6
-        `);
+        `;
 
-        // 2. Get highlights, handling schema differences
-        let highlights = [];
-        try {
-            // Try query with 'Color' column
-            highlights = await sqliteDb.all(`
-                SELECT
-                    VolumeID AS book_id,
-                    Text AS text,
-                    Annotation AS annotation,
-                    DateCreated AS date_created,
-                    Type AS type,
-                    Color AS color
-                FROM Bookmark
-                WHERE Type = 'highlight' OR Type = 'note'
-            `);
-        } catch (e) {
-            if (e.message.includes("no such column: Color")) {
-                logger.log("Query failed due to missing 'Color' column. Retrying without it.");
-                const highlightsWithoutColor = await sqliteDb.all(`
-                    SELECT
-                        VolumeID AS book_id,
-                        Text AS text,
-                        Annotation AS annotation,
-                        DateCreated AS date_created,
-                        Type AS type
-                    FROM Bookmark
-                    WHERE Type = 'highlight' OR Type = 'note'
-                `);
-                // Add default color
-                highlights = highlightsWithoutColor.map(h => ({ ...h, color: 0 }));
-            } else {
-                throw e; // Re-throw other errors
+        await sqliteDb.each(bookQuery, [], (err, book) => {
+            if (err) {
+                throw err;
             }
-        }
-
-        // 3. Batch write to Firestore
-        const batch = db.batch();
-
-        books.forEach(book => {
-            if (book.book_id) {
+            if (book && book.book_id) {
                 const sanitizedBookId = book.book_id.replace(/\//g, "__");
                 const bookRef = db.collection("users").doc(userId).collection("books").doc(sanitizedBookId);
                 batch.set(bookRef, book, { merge: true });
+                operationCount++;
+                bookCount++;
+
+                if (operationCount >= BATCH_LIMIT) {
+                    batch.commit();
+                    batch = db.batch();
+                    operationCount = 0;
+                }
             }
         });
 
-        highlights.forEach(highlight => {
-            if (highlight.book_id && highlight.text) {
+        // 2. Process highlights, handling schema differences
+        let hasColorColumn = true;
+        try {
+            await sqliteDb.get("SELECT Color FROM Bookmark LIMIT 1");
+        } catch (e) {
+            if (e.message.includes("no such column: Color")) {
+                logger.log("Query failed due to missing 'Color' column. Proceeding without it.");
+                hasColorColumn = false;
+            } else {
+                throw e;
+            }
+        }
+
+        const highlightQuery = hasColorColumn
+            ? `SELECT VolumeID AS book_id, Text AS text, Annotation AS annotation, DateCreated AS date_created, Type AS type, Color AS color FROM Bookmark WHERE Type = 'highlight' OR Type = 'note'`
+            : `SELECT VolumeID AS book_id, Text AS text, Annotation AS annotation, DateCreated AS date_created, Type AS type FROM Bookmark WHERE Type = 'highlight' OR Type = 'note'`;
+
+        await sqliteDb.each(highlightQuery, [], (err, highlight) => {
+            if (err) {
+                throw err;
+            }
+            if (highlight && highlight.book_id && highlight.text) {
+                if (!hasColorColumn) {
+                    highlight.color = 0; // Add default color
+                }
                 const sanitizedBookId = highlight.book_id.replace(/\//g, "__");
                 const uniqueString = `${userId}-${sanitizedBookId}-${highlight.text}`;
                 const sanitizedHighlightId = crypto.createHash('sha1').update(uniqueString).digest('hex');
                 const highlightRef = db.collection("users").doc(userId).collection("highlights").doc(sanitizedHighlightId);
                 batch.set(highlightRef, { ...highlight, book_id: sanitizedBookId }, { merge: true });
+                operationCount++;
+                highlightCount++;
+
+                if (operationCount >= BATCH_LIMIT) {
+                    batch.commit();
+                    batch = db.batch();
+                    operationCount = 0;
+                }
             }
         });
 
-        await batch.commit();
-        logger.log(`Successfully processed and saved ${books.length} books and ${highlights.length} highlights.`);
+        // 3. Commit any remaining operations in the last batch
+        if (operationCount > 0) {
+            await batch.commit();
+        }
+
+        logger.log(`Successfully processed and saved ${bookCount} books and ${highlightCount} highlights.`);
 
         // 4. Update status
-        if (books.length > 0 && highlights.length === 0) {
-            await statusRef.set({ status: 'no_highlights', bookCount: books.length, highlightCount: 0 });
+        if (bookCount > 0 && highlightCount === 0) {
+            await statusRef.set({ status: 'no_highlights', bookCount: bookCount, highlightCount: 0 });
         } else {
-            await statusRef.set({ status: 'success', bookCount: books.length, highlightCount: highlights.length });
+            await statusRef.set({ status: 'success', bookCount: bookCount, highlightCount: highlightCount });
         }
 
     } catch (error) {
