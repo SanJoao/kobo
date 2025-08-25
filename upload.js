@@ -1,6 +1,7 @@
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
 import { ref, uploadBytesResumable } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-storage.js";
-import { auth, storage } from "./firebase-init.js";
+import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+import { auth, storage, db } from "./firebase-init.js";
 
 document.addEventListener('DOMContentLoaded', () => {
     const uploadButton = document.getElementById('upload-button');
@@ -64,18 +65,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 uploadStatus.style.color = 'green';
                 
                 const message = document.createElement('p');
-                message.textContent = 'Upload complete! Your highlights will be processed shortly.';
+                message.textContent = 'Upload complete! Processing your highlights...';
                 uploadStatus.appendChild(message);
 
-                const profileButton = document.createElement('button');
-                profileButton.textContent = 'Go to Your Profile';
-                profileButton.id = 'go-to-profile';
-                profileButton.onclick = () => {
-                    window.location.href = `/user/${currentUser.uid}`;
-                };
-                
-                uploadStatus.appendChild(profileButton);
+                // Listen for processing status updates
+                listenForProcessingStatus(currentUser.uid);
             }
         );
+    }
+
+    function listenForProcessingStatus(userId) {
+        const statusRef = doc(db, "processingStatus", userId);
+
+        onSnapshot(statusRef, (doc) => {
+            if (doc.exists()) {
+                const statusData = doc.data();
+                uploadStatus.innerHTML = ''; // Clear previous messages
+
+                const message = document.createElement('p');
+                if (statusData.status === 'success') {
+                    message.textContent = `Successfully processed ${statusData.bookCount} books and ${statusData.highlightCount} highlights.`;
+                    message.style.color = 'green';
+                    
+                    const profileButton = document.createElement('button');
+                    profileButton.textContent = 'Go to Your Profile';
+                    profileButton.id = 'go-to-profile';
+                    profileButton.onclick = () => {
+                        window.location.href = `/user/${userId}`;
+                    };
+                    uploadStatus.appendChild(profileButton);
+
+                } else if (statusData.status === 'no_highlights') {
+                    message.textContent = 'Processing complete. No new highlights were found.';
+                    message.style.color = 'orange';
+                } else if (statusData.status === 'error') {
+                    message.textContent = `An error occurred: ${statusData.error}`;
+                    message.style.color = 'red';
+                }
+                uploadStatus.appendChild(message);
+            }
+        });
     }
 });

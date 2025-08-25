@@ -12,5 +12,10 @@ service cloud.firestore {
       allow update: if request.auth != null && 
                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likeCount']);
     }
+
+    // Allow users to read their own processing status
+    match /processingStatus/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+    }
   }
 }

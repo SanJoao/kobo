@@ -42,21 +42,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         const mainContent = document.getElementById('main-content');
         const profileSection = document.getElementById('profile-section');
 
-        if (path === '/' || path === '/index.html') {
-            landingPage.style.display = 'block';
-            mainContent.style.display = 'none';
-            if (profileSection) profileSection.style.display = 'none';
-        } else if (path.startsWith('/user/')) {
+        if (landingPage) {
             landingPage.style.display = 'none';
-            mainContent.style.display = 'block';
+        }
+        if (mainContent) {
+            mainContent.style.display = 'none';
+        }
+        if (profileSection) {
+            profileSection.style.display = 'none';
+        }
+
+        if (path === '/' || path === '/index.html') {
+            if (landingPage) landingPage.style.display = 'block';
+        } else if (path.startsWith('/user/')) {
+            if (mainContent) mainContent.style.display = 'block';
             if (profileSection) profileSection.style.display = 'block';
             const userId = path.split('/')[2];
             loadUserData(userId);
             loadProfile(userId);
+        } else if (path === '/upload.html') {
+            // No specific content to show/hide on upload page from the main script
         } else {
-            landingPage.style.display = 'none';
-            mainContent.style.display = 'block';
-            if (profileSection) profileSection.style.display = 'none';
+            if (mainContent) mainContent.style.display = 'block';
             loadAllPublicData();
         }
     };
@@ -322,18 +329,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 getDocs(userHighlightsQuery)
             ]);
 
-            const books = booksSnapshot.docs.map(doc => ({ book_id: doc.id, ...doc.data() }));
+            const books = booksSnapshot.docs.map(doc => ({ doc_id: doc.id, ...doc.data() }));
             const highlights = highlightsSnapshot.docs.map(doc => ({ highlight_id: doc.id, user_id: userId, ...doc.data() }));
 
-            const booksMap = new Map(books.map(book => [book.book_id, book]));
+            const booksMap = new Map(books.map(book => [book.doc_id, book]));
 
             allBooks = books;
             allHighlights = highlights.map(highlight => {
                 const book = booksMap.get(highlight.book_id);
+                const originalBookId = highlight.book_id;
                 return {
                     ...highlight,
                     ...book,
-                    book_title: book ? book.title : 'Unknown Book'
+                    book_id: originalBookId, // Preserve original highlight's book_id
+                    book_title: book && book.title ? book.title : 'Unknown Book'
                 };
             });
 
@@ -362,19 +371,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                     getDocs(userHighlightsQuery)
                 ]);
 
-                books = books.concat(booksSnapshot.docs.map(doc => ({ book_id: doc.id, ...doc.data() })));
+                books = books.concat(booksSnapshot.docs.map(doc => ({ doc_id: doc.id, ...doc.data() })));
                 highlights = highlights.concat(highlightsSnapshot.docs.map(doc => ({ highlight_id: doc.id, user_id: userDoc.id, ...doc.data() })));
             }
 
-            const booksMap = new Map(books.map(book => [book.book_id, book]));
+            const booksMap = new Map(books.map(book => [book.doc_id, book]));
 
             allBooks = books;
             allHighlights = highlights.map(highlight => {
                 const book = booksMap.get(highlight.book_id);
+                const originalBookId = highlight.book_id;
                 return {
                     ...highlight,
                     ...book,
-                    book_title: book ? book.title : 'Unknown Book'
+                    book_id: originalBookId, // Preserve original highlight's book_id
+                    book_title: book && book.title ? book.title : 'Unknown Book'
                 };
             });
 
@@ -414,185 +425,203 @@ document.addEventListener('DOMContentLoaded', async () => {
         const timeSpentCtx = document.getElementById('time-spent-chart').getContext('2d');
         const timelineCtx = document.getElementById('timeline-chart').getContext('2d');
 
-        // Time Spent Chart
-        const bookTime = highlights.reduce((acc, h) => {
-            if (!acc[h.book_title]) {
-                acc[h.book_title] = h.time_spent_reading || 0;
-            }
-            return acc;
-        }, {});
-        const sortedTime = Object.entries(bookTime).sort(([, a], [, b]) => b - a);
-        const totalTime = sortedTime.reduce((sum, [, time]) => sum + time, 0);
+        // Time Spent Chart (now based on allBooks)
+        const sortedBooksByTime = books.sort((a, b) => b.time_spent_reading - a.time_spent_reading);
+        const totalTime = books.reduce((sum, book) => sum + (book.time_spent_reading || 0), 0);
+
+        const statusData = {
+            completed: { label: 'Completed', data: [], backgroundColor: colorMap[3].bg },
+            inProgress: { label: 'In Progress', data: [], backgroundColor: colorMap[2].bg },
+            notStarted: { label: 'Not Started', data: [], backgroundColor: colorMap[0].bg }
+        };
+
+        const labels = sortedBooksByTime.map(book => book.title);
+        labels.forEach((label, index) => {
+            const book = sortedBooksByTime[index];
+            const percentRead = book.percent_read || 0;
+            const time = (book.time_spent_reading / 3600).toFixed(2);
+
+            statusData.completed.data[index] = percentRead > 97 ? time : 0;
+            statusData.inProgress.data[index] = percentRead > 3 && percentRead <= 97 ? time : 0;
+            statusData.notStarted.data[index] = percentRead <= 3 ? time : 0;
+        });
+
+        const timeSpentContainer = document.getElementById('time-spent-chart-container');
+        const timeSpentWrapper = timeSpentContainer.querySelector('.chart-wrapper');
+        const timeSpentBarHeight = 20;
+        const timeSpentNewHeight = Math.max(400, labels.length * timeSpentBarHeight);
+        timeSpentWrapper.style.height = `${timeSpentNewHeight}px`;
+
         timeSpentChart = new Chart(timeSpentCtx, {
             type: 'bar',
             data: {
-                labels: sortedTime.map(([title]) => title),
-                datasets: [{
-                    label: 'Time Spent (hours)',
-                    data: sortedTime.map(([, time]) => (time / 3600).toFixed(2)),
-                    backgroundColor: colorMap[2].bg,
-                    borderColor: colorMap[2].border,
-                    borderWidth: 1
-                }]
+                labels: labels,
+                datasets: [
+                    { ...statusData.completed },
+                    { ...statusData.inProgress },
+                    { ...statusData.notStarted }
+                ]
             },
             options: {
                 indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    title: { 
-                        display: true, 
-                        text: `Time Spent Reading (Total: ${(totalTime / 3600).toFixed(2)} hours)`,
-                        color: textColor 
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: { color: textColor },
-                        grid: { color: gridColor }
-                    },
-                    y: {
-                        ticks: { color: textColor },
-                        grid: { color: gridColor }
-                    }
-                },
-                onClick: (evt, elements) => {
-                    if (elements.length > 0) {
-                        const clickedBook = timeSpentChart.data.labels[elements[0].index];
-                        if (activeBookFilter === clickedBook) {
-                            bookFilter.value = 'all';
-                            activeBookFilter = null;
-                        } else {
-                            bookFilter.value = clickedBook;
-                            activeBookFilter = clickedBook;
-                        }
-                        filterAndSort();
-                    }
-                }
-            }
-        });
-
-        // Book Chart
-        const bookCounts = highlights.reduce((acc, h) => {
-            acc[h.book_title] = (acc[h.book_title] || 0) + 1;
-            return acc;
-        }, {});
-        const sortedBooks = Object.entries(bookCounts).sort(([, a], [, b]) => b - a);
-        const totalHighlights = sortedBooks.reduce((sum, [, count]) => sum + count, 0);
-        booksChart = new Chart(booksCtx, {
-            type: 'bar',
-            data: {
-                labels: sortedBooks.map(([title]) => title),
-                datasets: [{
-                    label: 'Highlights Count',
-                    data: sortedBooks.map(([, count]) => count),
-                    backgroundColor: colorMap[0].bg,
-                    borderColor: colorMap[0].border,
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    title: { 
-                        display: true, 
-                        text: `Highlights by Book (Total: ${totalHighlights})`,
-                        color: textColor
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: { color: textColor },
-                        grid: { color: gridColor }
-                    },
-                    y: {
-                        ticks: { color: textColor },
-                        grid: { color: gridColor }
-                    }
-                },
-                onClick: (evt, elements) => {
-                    if (elements.length > 0) {
-                        const clickedBook = booksChart.data.labels[elements[0].index];
-                        if (activeBookFilter === clickedBook) {
-                            bookFilter.value = 'all';
-                            activeBookFilter = null;
-                        } else {
-                            bookFilter.value = clickedBook;
-                            activeBookFilter = clickedBook;
-                        }
-                        filterAndSort();
-                    }
-                }
-            }
-        });
-
-        // Color Chart
-        const colorCounts = highlights.reduce((acc, h) => {
-            acc[h.color] = (acc[h.color] || 0) + 1;
-            return acc;
-        }, {});
-        colorsChart = new Chart(colorsCtx, {
-            type: 'doughnut',
-            data: {
-                labels: Object.keys(colorCounts).map(c => colorMap[c].name),
-                datasets: [{
-                    data: Object.values(colorCounts),
-                    backgroundColor: Object.keys(colorCounts).map(c => colorMap[c].bg),
-                    borderColor: Object.keys(colorCounts).map(c => colorMap[c].border),
-                    borderWidth: 1
-                }]
-            },
-            options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
                     legend: { 
-                        position: 'top',
+                        display: true,
                         labels: { color: textColor }
                     },
-                    title: { 
-                        display: true, 
-                        text: 'Highlights by Color',
+                    title: {
+                        display: true,
+                        text: `Time Spent Reading (Total: ${(totalTime / 3600).toFixed(2)} hours)`,
                         color: textColor
                     }
                 },
-                onClick: (evt, elements) => {
-                    if (elements.length > 0) {
-                        const clickedColorName = colorsChart.data.labels[elements[0].index];
-                        const clickedColor = Object.keys(colorMap).find(key => colorMap[key].name === clickedColorName);
-                        if (activeColorFilter === clickedColor) {
-                            colorFilter.value = 'all';
-                            activeColorFilter = null;
-                        } else {
-                            colorFilter.value = clickedColor;
-                            activeColorFilter = clickedColor;
-                        }
-                        filterAndSort();
+                scales: {
+                    x: { 
+                        stacked: true,
+                        ticks: { color: textColor }, 
+                        grid: { color: gridColor } 
+                    },
+                    y: { 
+                        stacked: true,
+                        ticks: { color: textColor }, 
+                        grid: { color: gridColor } 
                     }
                 }
             }
         });
 
-        // Timeline Chart
-        const bookDates = getBookReadingDates(books, highlights);
-        const timelineData = getTimelineData(highlights, bookDates, 'month');
+        // Book Chart (only if highlights exist)
+        const booksChartContainer = document.getElementById('books-chart-container');
+        if (highlights.length > 0 && booksChartContainer) {
+            booksChartContainer.style.display = 'block';
+            const bookCounts = highlights.reduce((acc, h) => {
+                acc[h.book_title] = (acc[h.book_title] || 0) + 1;
+                return acc;
+            }, {});
+            const sortedBooks = Object.entries(bookCounts).sort(([, a], [, b]) => b - a);
+            const totalHighlights = sortedBooks.reduce((sum, [, count]) => sum + count, 0);
 
+            const booksContainer = document.getElementById('books-chart-container');
+            const booksWrapper = booksContainer.querySelector('.chart-wrapper');
+            const booksBarHeight = 20;
+            const booksNewHeight = Math.max(400, sortedBooks.length * booksBarHeight);
+            booksWrapper.style.height = `${booksNewHeight}px`;
+
+            booksChart = new Chart(booksCtx, {
+                type: 'bar',
+                data: {
+                    labels: sortedBooks.map(([title]) => title),
+                    datasets: [{
+                        label: 'Highlights Count',
+                        data: sortedBooks.map(([, count]) => count),
+                        backgroundColor: colorMap[0].bg,
+                        borderColor: colorMap[0].border,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        title: {
+                            display: true,
+                            text: `Highlights by Book (Total: ${totalHighlights})`,
+                            color: textColor
+                        }
+                    },
+                    scales: {
+                        x: { ticks: { color: textColor }, grid: { color: gridColor } },
+                        y: { ticks: { color: textColor }, grid: { color: gridColor } }
+                    },
+                    onClick: (evt, elements) => {
+                        if (elements.length > 0) {
+                            const clickedBook = booksChart.data.labels[elements[0].index];
+                            if (activeBookFilter === clickedBook) {
+                                bookFilter.value = 'all';
+                                activeBookFilter = null;
+                            } else {
+                                bookFilter.value = clickedBook;
+                                activeBookFilter = clickedBook;
+                            }
+                            filterAndSort();
+                        }
+                    }
+                }
+            });
+        } else if (booksChartContainer) {
+            booksChartContainer.style.display = 'none';
+        }
+
+        // Color Chart (only if highlights exist)
+        const colorsChartContainer = document.getElementById('colors-chart-container');
+        if (highlights.length > 0 && colorsChartContainer) {
+            colorsChartContainer.style.display = 'block';
+            const colorCounts = highlights.reduce((acc, h) => {
+                acc[h.color] = (acc[h.color] || 0) + 1;
+                return acc;
+            }, {});
+            colorsChart = new Chart(colorsCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(colorCounts).map(c => colorMap[c].name),
+                    datasets: [{
+                        data: Object.values(colorCounts),
+                        backgroundColor: Object.keys(colorCounts).map(c => colorMap[c].bg),
+                        borderColor: Object.keys(colorCounts).map(c => colorMap[c].border),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: { color: textColor }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Highlights by Color',
+                            color: textColor
+                        }
+                    },
+                    onClick: (evt, elements) => {
+                        if (elements.length > 0) {
+                            const clickedColorName = colorsChart.data.labels[elements[0].index];
+                            const clickedColor = Object.keys(colorMap).find(key => colorMap[key].name === clickedColorName);
+                            if (activeColorFilter === clickedColor) {
+                                colorFilter.value = 'all';
+                                activeColorFilter = null;
+                            } else {
+                                colorFilter.value = clickedColor;
+                                activeColorFilter = clickedColor;
+                            }
+                            filterAndSort();
+                        }
+                    }
+                }
+            });
+        } else if (colorsChartContainer) {
+            colorsChartContainer.style.display = 'none';
+        }
+
+        // Timeline Chart
+        const timelineData = getTimelineData(highlights, books, 'month');
         const bookCompletionLines = {
             id: 'bookCompletionLines',
             afterDraw: (chart) => {
                 const ctx = chart.ctx;
                 const xAxis = chart.scales.x;
                 const yAxis = chart.scales.y;
-                const currentFilter = document.querySelector('#timeline-filters button.active')?.dataset.filter || 'month';
-
-                const completedBooks = allBooks.filter(b => b.percent_read >= 98);
+                const completedBooks = allBooks.filter(b => b.percent_read >= 98 && b.date_last_read);
 
                 completedBooks.forEach(book => {
                     const date = new Date(book.date_last_read);
+                    const currentFilter = document.querySelector('#timeline-filters button.active')?.dataset.filter || 'month';
                     let key;
 
                     if (currentFilter === 'day') {
@@ -601,12 +630,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const weekStart = new Date(date);
                         weekStart.setDate(date.getDate() - date.getDay());
                         key = weekStart.toISOString().split('T')[0];
-                    } else {
+                    } else { // month
                         key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
                     }
                     
                     const index = chart.data.labels.indexOf(key);
-
                     if (index !== -1) {
                         const x = xAxis.getPixelForValue(index);
                         ctx.save();
@@ -614,9 +642,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         ctx.moveTo(x, yAxis.top);
                         ctx.lineTo(x, yAxis.bottom);
                         ctx.lineWidth = 2;
-                        ctx.strokeStyle = 'rgba(153, 102, 255, 0.8)';
+                        ctx.strokeStyle = 'rgba(75, 192, 192, 1)';
                         ctx.stroke();
-
                         ctx.restore();
                     }
                 });
@@ -789,126 +816,124 @@ document.addEventListener('DOMContentLoaded', async () => {
         return bookDates;
     }
 
-    function getTimelineData(highlights, bookDates, interval) {
-        const datasets = {};
+    function getTimelineData(highlights, books, interval) {
+        const dataByColor = {};
         const labels = new Set();
-        const now = new Date();
-        let startDate = new Date(0); // The beginning of time
 
-        switch (interval) {
-            case 'ytd':
-                startDate = new Date(now.getFullYear(), 0, 1);
-                break;
-            case '1y':
-                startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-                break;
-            case 'max':
-                // startDate is already at the beginning of time
-                break;
-        }
-
-        const filteredHighlights = highlights.filter(h => {
-            const highlightDate = new Date(h.date_created);
-            if (interval === 'ytd') {
-                return highlightDate.getFullYear() === now.getFullYear();
+        const processDate = (date, interval) => {
+            let key;
+            if (interval === 'day') {
+                key = date.toISOString().split('T')[0];
+            } else if (interval === 'week') {
+                const weekStart = new Date(date);
+                weekStart.setDate(date.getDate() - date.getDay());
+                key = weekStart.toISOString().split('T')[0];
+            } else { // month
+                key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
             }
-            return highlightDate >= startDate;
+            return key;
+        };
+
+        highlights.forEach(h => {
+            const key = processDate(new Date(h.date_created), interval);
+            labels.add(key);
+
+            if (!dataByColor[h.color]) {
+                dataByColor[h.color] = {};
+            }
+            dataByColor[h.color][key] = (dataByColor[h.color][key] || 0) + 1;
         });
 
-        filteredHighlights.forEach(h => {
-            const bookDateInfo = bookDates[h.book_id];
-            if (bookDateInfo) {
-                const date = new Date(h.date_created);
-                let key;
-
-                let groupingInterval = interval;
-                if (['ytd', '1y', '5y', 'max'].includes(interval)) {
-                    groupingInterval = 'month'; // Default to month for larger ranges
-                }
-
-                if (groupingInterval === 'day') {
-                    key = date.toISOString().split('T')[0];
-                } else if (groupingInterval === 'week') {
-                    const weekStart = new Date(date);
-                    weekStart.setDate(date.getDate() - date.getDay());
-                    key = weekStart.toISOString().split('T')[0];
-                } else { // month
-                    key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-                }
-
+        // Also add labels for completed books to ensure they are shown
+        books.forEach(book => {
+            if (book.percent_read > 97 && book.date_last_read) {
+                const key = processDate(new Date(book.date_last_read), interval);
                 labels.add(key);
-                const color = h.color;
-                if (!datasets[color]) {
-                    datasets[color] = {
-                        label: colorMap[color].name,
-                        data: {},
-                        backgroundColor: colorMap[color].bg,
-                        borderColor: colorMap[color].border,
-                        borderWidth: 1
-                    };
-                }
-                datasets[color].data[key] = (datasets[color].data[key] || 0) + 1;
             }
         });
 
         const sortedLabels = Array.from(labels).sort();
-        const finalDatasets = Object.values(datasets).map(ds => {
-            ds.data = sortedLabels.map(label => ds.data[label] || 0);
-            return ds;
+        const datasets = Object.keys(colorMap).map(colorId => {
+            return {
+                label: colorMap[colorId].name,
+                data: sortedLabels.map(label => (dataByColor[colorId] && dataByColor[colorId][label]) || 0),
+                backgroundColor: colorMap[colorId].bg,
+            };
         });
 
         return {
             labels: sortedLabels,
-            datasets: finalDatasets
+            datasets: datasets
         };
     }
     
     function updateCharts(highlights) {
-        // Update Time Spent Chart
-        const bookTime = highlights.reduce((acc, h) => {
-            if (!acc[h.book_title]) {
-                acc[h.book_title] = h.time_spent_reading || 0;
-            }
-            return acc;
-        }, {});
-        const sortedTime = Object.entries(bookTime).sort(([, a], [, b]) => b - a);
-        const totalTime = sortedTime.reduce((sum, [, time]) => sum + time, 0);
-        timeSpentChart.data.labels = sortedTime.map(([title]) => title);
-        timeSpentChart.data.datasets[0].data = sortedTime.map(([, time]) => (time / 3600).toFixed(2));
-        timeSpentChart.options.plugins.title.text = `Time Spent Reading (Total: ${(totalTime / 3600).toFixed(2)} hours)`;
-        timeSpentChart.update();
+        // Update Time Spent Chart - This should be independent of highlight filters
+        if (timeSpentChart) {
+            const sortedBooksByTime = allBooks.sort((a, b) => b.time_spent_reading - a.time_spent_reading);
+            const totalTime = allBooks.reduce((sum, book) => sum + (book.time_spent_reading || 0), 0);
+
+            const statusData = {
+                completed: { data: [] },
+                inProgress: { data: [] },
+                notStarted: { data: [] }
+            };
+
+            const labels = sortedBooksByTime.map(book => book.title);
+            labels.forEach((label, index) => {
+                const book = sortedBooksByTime[index];
+                const percentRead = book.percent_read || 0;
+                const time = (book.time_spent_reading / 3600).toFixed(2);
+
+                statusData.completed.data[index] = percentRead > 97 ? time : 0;
+                statusData.inProgress.data[index] = percentRead > 3 && percentRead <= 97 ? time : 0;
+                statusData.notStarted.data[index] = percentRead <= 3 ? time : 0;
+            });
+
+            timeSpentChart.data.labels = labels;
+            timeSpentChart.data.datasets[0].data = statusData.completed.data;
+            timeSpentChart.data.datasets[1].data = statusData.inProgress.data;
+            timeSpentChart.data.datasets[2].data = statusData.notStarted.data;
+            timeSpentChart.options.plugins.title.text = `Time Spent Reading (Total: ${(totalTime / 3600).toFixed(2)} hours)`;
+            timeSpentChart.update();
+        }
 
         // Update Book Chart
-        const bookCounts = highlights.reduce((acc, h) => {
-            acc[h.book_title] = (acc[h.book_title] || 0) + 1;
-            return acc;
-        }, {});
-        const sortedBooks = Object.entries(bookCounts).sort(([, a], [, b]) => b - a);
-        const totalHighlights = sortedBooks.reduce((sum, [, count]) => sum + count, 0);
-        booksChart.data.labels = sortedBooks.map(([title]) => title);
-        booksChart.data.datasets[0].data = sortedBooks.map(([, count]) => count);
-        booksChart.options.plugins.title.text = `Highlights by Book (Total: ${totalHighlights})`;
-        booksChart.update();
+        if (booksChart) {
+            const bookCounts = highlights.reduce((acc, h) => {
+                acc[h.book_title] = (acc[h.book_title] || 0) + 1;
+                return acc;
+            }, {});
+            const sortedBooks = Object.entries(bookCounts).sort(([, a], [, b]) => b - a);
+            const totalHighlights = sortedBooks.reduce((sum, [, count]) => sum + count, 0);
+            booksChart.data.labels = sortedBooks.map(([title]) => title);
+            booksChart.data.datasets[0].data = sortedBooks.map(([, count]) => count);
+            booksChart.options.plugins.title.text = `Highlights by Book (Total: ${totalHighlights})`;
+            booksChart.update();
+        }
 
         // Update Color Chart
-        const colorCounts = highlights.reduce((acc, h) => {
-            acc[h.color] = (acc[h.color] || 0) + 1;
-            return acc;
-        }, {});
-        const colorKeys = Object.keys(colorCounts);
-        colorsChart.data.labels = colorKeys.map(c => colorMap[c].name);
-        colorsChart.data.datasets[0].data = Object.values(colorCounts);
-        colorsChart.data.datasets[0].backgroundColor = colorKeys.map(c => colorMap[c].bg);
-        colorsChart.data.datasets[0].borderColor = colorKeys.map(c => colorMap[c].border);
-        colorsChart.update();
+        if (colorsChart) {
+            const colorCounts = highlights.reduce((acc, h) => {
+                acc[h.color] = (acc[h.color] || 0) + 1;
+                return acc;
+            }, {});
+            const colorKeys = Object.keys(colorCounts);
+            colorsChart.data.labels = colorKeys.map(c => colorMap[c].name);
+            colorsChart.data.datasets[0].data = Object.values(colorCounts);
+            colorsChart.data.datasets[0].backgroundColor = colorKeys.map(c => colorMap[c].bg);
+            colorsChart.data.datasets[0].borderColor = colorKeys.map(c => colorMap[c].border);
+            colorsChart.update();
+        }
 
         // Update Timeline Chart
-        const bookDates = getBookReadingDates(allBooks, allHighlights);
-        const currentTimelineFilter = document.querySelector('#timeline-filters button.active')?.dataset.filter || 'month';
-        const timelineData = getTimelineData(highlights, bookDates, currentTimelineFilter);
-        timelineChart.data.labels = timelineData.labels;
-        timelineChart.data.datasets = timelineData.datasets;
-        timelineChart.update();
+        if (timelineChart) {
+            const currentTimelineFilter = document.querySelector('#timeline-filters button.active')?.dataset.filter || 'month';
+            const timelineData = getTimelineData(highlights, allBooks, currentTimelineFilter);
+            timelineChart.data.labels = timelineData.labels;
+            timelineChart.data.datasets = timelineData.datasets;
+            timelineChart.update();
+        }
     }
 
 function createHighlightElement(h, searchTerm = '') {
@@ -1238,17 +1263,23 @@ async function toggleLike(highlightId, authorId) {
         }
     }
 
-    closeButton.addEventListener('click', closeFocusModal);
-    modal.addEventListener('click', (event) => {
-        if (event.target === modal) { // Clicked on the background
-            closeFocusModal();
-        }
-    });
-    shareButton.addEventListener('click', () => {
-        if (shareButton.dataset.highlightId) {
-            shareHighlight(shareButton.dataset.highlightId);
-        }
-    });
+    if (closeButton) {
+        closeButton.addEventListener('click', closeFocusModal);
+    }
+    if (modal) {
+        modal.addEventListener('click', (event) => {
+            if (event.target === modal) { // Clicked on the background
+                closeFocusModal();
+            }
+        });
+    }
+    if (shareButton) {
+        shareButton.addEventListener('click', () => {
+            if (shareButton.dataset.highlightId) {
+                shareHighlight(shareButton.dataset.highlightId);
+            }
+        });
+    }
 
     window.addEventListener('popstate', (event) => {
         if (event.state && event.state.highlightId) {

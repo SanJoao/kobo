@@ -12,51 +12,85 @@ def extract_and_process_highlights(db_file, books_output_file, highlights_output
         conn = sqlite3.connect(db_file)
         cursor = conn.cursor()
 
+        # First, get all books from the content table
         cursor.execute("""
             SELECT
-                b.VolumeID,
-                b.Text,
-                b.Annotation,
-                b.DateCreated,
-                b.Type,
-                b.Color,
-                c.TimeSpentReading,
-                c.___PercentRead,
-                c.WordCount,
-                c.Series,
-                c.SeriesNumber,
-                c.Description,
-                c.AverageRating,
-                c.RatingCount,
-                c.DateLastRead,
-                c.Title
-            FROM Bookmark b
-            LEFT JOIN content c ON b.VolumeID = c.ContentID
-            WHERE b.Type = 'highlight' OR b.Type = 'note'
+                ContentID,
+                Title,
+                TimeSpentReading,
+                ___PercentRead,
+                WordCount,
+                Series,
+                SeriesNumber,
+                Description,
+                AverageRating,
+                RatingCount,
+                DateLastRead
+            FROM content
+            WHERE ContentType = 6
         """)
-        highlights_data = cursor.fetchall()
+        all_books_data = cursor.fetchall()
 
         books = {}
+        for row in all_books_data:
+            (content_id, title, time_spent_reading, percent_read, word_count,
+             series, series_number, description, average_rating, rating_count,
+             date_last_read) = row
+            books[content_id] = {
+                'book_id': content_id,
+                'title': title,
+                'time_spent_reading': time_spent_reading,
+                'percent_read': percent_read,
+                'word_count': word_count,
+                'series': series,
+                'series_number': series_number,
+                'description': description,
+                'average_rating': average_rating,
+                'rating_count': rating_count,
+                'date_last_read': date_last_read
+            }
+
+        # Now, get all highlights
+        try:
+            # Try to execute the query with the 'Color' column
+            cursor.execute("""
+                SELECT
+                    VolumeID,
+                    Text,
+                    Annotation,
+                    DateCreated,
+                    Type,
+                    Color
+                FROM Bookmark
+                WHERE Type = 'highlight' OR Type = 'note'
+            """)
+            highlights_data = cursor.fetchall()
+            color_column_exists = True
+        except sqlite3.OperationalError as e:
+            if "no such column: Color" in str(e):
+                # If 'Color' column doesn't exist, run a modified query
+                cursor.execute("""
+                    SELECT
+                        VolumeID,
+                        Text,
+                        Annotation,
+                        DateCreated,
+                        Type
+                    FROM Bookmark
+                    WHERE Type = 'highlight' OR Type = 'note'
+                """)
+                highlights_data = cursor.fetchall()
+                color_column_exists = False
+            else:
+                raise
+
         highlights = []
         for row in highlights_data:
-            (volume_id, text, annotation, date_created, highlight_type, color,
-             time_spent_reading, percent_read, word_count, series, series_number,
-             description, average_rating, rating_count, date_last_read, title) = row
-
-            if volume_id not in books:
-                books[volume_id] = {
-                    'book_id': volume_id,
-                    'title': title,
-                    'time_spent_reading': time_spent_reading,
-                    'percent_read': percent_read,
-                    'word_count': word_count,
-                    'series': series,
-                    'series_number': series_number,
-                    'description': description,
-                    'average_rating': average_rating,
-                    'rating_count': rating_count,
-                    'date_last_read': date_last_read
-                }
+            if color_column_exists:
+                (volume_id, text, annotation, date_created, highlight_type, color) = row
+            else:
+                (volume_id, text, annotation, date_created, highlight_type) = row
+                color = 0  # Default color
 
             highlights.append({
                 'book_id': volume_id,
@@ -84,4 +118,13 @@ def extract_and_process_highlights(db_file, books_output_file, highlights_output
             conn.close()
 
 if __name__ == '__main__':
-    extract_and_process_highlights('KoboReader.sqlite', 'books.json', 'highlights.json')
+    import sys
+    if len(sys.argv) != 4:
+        print("Usage: python extract_highlights.py <db_file> <books_output_file> <highlights_output_file>")
+        sys.exit(1)
+    
+    db_file = sys.argv[1]
+    books_output_file = sys.argv[2]
+    highlights_output_file = sys.argv[3]
+    
+    extract_and_process_highlights(db_file, books_output_file, highlights_output_file)

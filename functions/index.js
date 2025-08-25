@@ -27,86 +27,107 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2 }, async (event) => {
     await bucket.file(filePath).download({ destination: tempFilePath });
     logger.log("Database downloaded to", tempFilePath);
 
-    const sqliteDb = await open({
-        filename: tempFilePath,
-        driver: sqlite3.Database,
-    });
+    const db = getFirestore();
+    const statusRef = db.collection("processingStatus").doc(userId);
+    let sqliteDb;
 
     try {
-        const results = await sqliteDb.all(`
+        sqliteDb = await open({
+            filename: tempFilePath,
+            driver: sqlite3.Database,
+        });
+
+        // 1. Get all books first
+        const books = await sqliteDb.all(`
             SELECT
-                b.BookmarkID AS highlight_id,
-                b.VolumeID AS book_id,
-                b.Text AS text,
-                b.Annotation AS annotation,
-                b.DateCreated AS date_created,
-                b.Type AS type,
-                b.Color AS color,
-                c.Title AS title,
-                c.Attribution AS author,
-                c.TimeSpentReading as time_spent_reading,
-                c.___PercentRead as percent_read,
-                c.WordCount as word_count,
-                c.Series as series,
-                c.SeriesNumber as series_number,
-                c.Description as description,
-                c.AverageRating as average_rating,
-                c.RatingCount as rating_count,
-                c.DateLastRead as date_last_read
-            FROM Bookmark b
-            LEFT JOIN content c ON b.VolumeID = c.ContentID
-            WHERE b.Type = 'highlight' OR b.Type = 'note'
+                ContentID as book_id,
+                Title as title,
+                TimeSpentReading as time_spent_reading,
+                ___PercentRead as percent_read,
+                WordCount as word_count,
+                Series as series,
+                SeriesNumber as series_number,
+                Description as description,
+                AverageRating as average_rating,
+                RatingCount as rating_count,
+                DateLastRead as date_last_read
+            FROM content
+            WHERE ContentType = 6
         `);
 
-        const db = getFirestore();
-        const batch = db.batch();
-        const bookMap = new Map();
-
-        results.forEach(row => {
-            const sanitizedBookId = row.book_id.replace(/\//g, "__");
-
-            // Create a unique ID based on content
-            const uniqueString = `${userId}-${sanitizedBookId}-${row.text}`;
-            const sanitizedHighlightId = crypto.createHash('sha1').update(uniqueString).digest('hex');
-
-            // Add book to batch if it's new
-            if (!bookMap.has(sanitizedBookId) && row.title) { // Ensure title is not null
-                const bookRef = db.collection("users").doc(userId).collection("books").doc(sanitizedBookId);
-                batch.set(bookRef, {
-                    title: row.title,
-                    author: row.author,
-                    time_spent_reading: row.time_spent_reading,
-                    percent_read: row.percent_read,
-                    word_count: row.word_count,
-                    series: row.series,
-                    series_number: row.series_number,
-                    description: row.description,
-                    average_rating: row.average_rating,
-                    rating_count: row.rating_count,
-                    date_last_read: row.date_last_read,
-                });
-                bookMap.set(sanitizedBookId, true);
+        // 2. Get highlights, handling schema differences
+        let highlights = [];
+        try {
+            // Try query with 'Color' column
+            highlights = await sqliteDb.all(`
+                SELECT
+                    VolumeID AS book_id,
+                    Text AS text,
+                    Annotation AS annotation,
+                    DateCreated AS date_created,
+                    Type AS type,
+                    Color AS color
+                FROM Bookmark
+                WHERE Type = 'highlight' OR Type = 'note'
+            `);
+        } catch (e) {
+            if (e.message.includes("no such column: Color")) {
+                logger.log("Query failed due to missing 'Color' column. Retrying without it.");
+                const highlightsWithoutColor = await sqliteDb.all(`
+                    SELECT
+                        VolumeID AS book_id,
+                        Text AS text,
+                        Annotation AS annotation,
+                        DateCreated AS date_created,
+                        Type AS type
+                    FROM Bookmark
+                    WHERE Type = 'highlight' OR Type = 'note'
+                `);
+                // Add default color
+                highlights = highlightsWithoutColor.map(h => ({ ...h, color: 0 }));
+            } else {
+                throw e; // Re-throw other errors
             }
+        }
 
-            // Add highlight to batch
-            const highlightRef = db.collection("users").doc(userId).collection("highlights").doc(sanitizedHighlightId);
-            batch.set(highlightRef, {
-                book_id: sanitizedBookId,
-                text: row.text,
-                annotation: row.annotation,
-                date_created: row.date_created,
-                color: row.color,
-                type: row.type,
-            }, { merge: true });
+        // 3. Batch write to Firestore
+        const batch = db.batch();
+
+        books.forEach(book => {
+            if (book.book_id) {
+                const sanitizedBookId = book.book_id.replace(/\//g, "__");
+                const bookRef = db.collection("users").doc(userId).collection("books").doc(sanitizedBookId);
+                batch.set(bookRef, book, { merge: true });
+            }
+        });
+
+        highlights.forEach(highlight => {
+            if (highlight.book_id && highlight.text) {
+                const sanitizedBookId = highlight.book_id.replace(/\//g, "__");
+                const uniqueString = `${userId}-${sanitizedBookId}-${highlight.text}`;
+                const sanitizedHighlightId = crypto.createHash('sha1').update(uniqueString).digest('hex');
+                const highlightRef = db.collection("users").doc(userId).collection("highlights").doc(sanitizedHighlightId);
+                batch.set(highlightRef, { ...highlight, book_id: sanitizedBookId }, { merge: true });
+            }
         });
 
         await batch.commit();
-        logger.log(`Successfully processed and saved ${results.length} highlights to Firestore.`);
+        logger.log(`Successfully processed and saved ${books.length} books and ${highlights.length} highlights.`);
+
+        // 4. Update status
+        if (books.length > 0 && highlights.length === 0) {
+            await statusRef.set({ status: 'no_highlights', bookCount: books.length, highlightCount: 0 });
+        } else {
+            await statusRef.set({ status: 'success', bookCount: books.length, highlightCount: highlights.length });
+        }
 
     } catch (error) {
         logger.error("Error processing database:", error);
+        await statusRef.set({ status: 'error', error: error.message });
     } finally {
-        await sqliteDb.close();
+        if (sqliteDb) {
+            await sqliteDb.close();
+        }
         fs.unlinkSync(tempFilePath);
     }
 });

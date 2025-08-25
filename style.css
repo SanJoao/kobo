@@ -194,6 +194,16 @@ h1 {
     box-shadow: 0 0 5px rgba(0,0,0,0.05);
 }
 
+#time-spent-chart-container,
+#books-chart-container {
+    height: 400px;
+    overflow-y: auto;
+}
+
+.chart-wrapper {
+    position: relative;
+}
+
 .chart-container.full-width {
     flex-basis: 100%;
 }
