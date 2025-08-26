@@ -1,7 +1,9 @@
 # Koby
 
 <p align="center">
+  <img src="assets/Isotype.svg" alt="Koby Logo" width="200"/>
   <img src="assets/Imagotype.svg" alt="Koby Logo" width="200"/>
+  <img src="assets/ImagotypeWhite.svg" alt="Koby Logo" width="200"/>
 </p>
 
 <p align="center">
