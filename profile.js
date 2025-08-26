@@ -208,7 +208,12 @@ function renderProfile(data, isOwner) {
                 if (filters) filters.style.display = 'none';
                 if (highlightsContainer) highlightsContainer.style.display = 'none';
             } else if (tabId === 'my-words') {
-                loadMyWords();
+                const userId = profileSection.dataset.userId;
+                if (userId) {
+                    loadMyWords(userId);
+                } else {
+                    console.error("User ID not found for loading my words.");
+                }
                 // Ocultar dashboard y filtros
                 if (dashboard) dashboard.style.display = 'none';
                 if (filters) filters.style.display = 'none';
@@ -285,23 +290,24 @@ async function getUsersData(userIds) {
     return users;
 }
 
-async function loadMyWords() {
+async function loadMyWords(userId) {
     const container = document.getElementById('my-words-container');
     if (!container) return;
-    container.innerHTML = '<p>Loading my words...</p>';
+    container.innerHTML = '<p>Loading words...</p>';
 
-    const user = auth.currentUser;
-    if (!user) {
-        container.innerHTML = '<p>Please log in to see your words.</p>';
+    if (!userId) {
+        container.innerHTML = '<p>Cannot load words. User ID is missing.</p>';
+        console.error("loadMyWords was called without a userId.");
         return;
     }
 
     try {
-        const wordsQuery = query(collection(db, `users/${user.uid}/words`));
+        const wordsQuery = query(collection(db, `users/${userId}/words`));
         const snapshot = await getDocs(wordsQuery);
 
         if (snapshot.empty) {
-            container.innerHTML = '<p>No words found. Please upload your KoboReader.sqlite file.</p>';
+            // This message is now generic for any user without words.
+            container.innerHTML = '<p>No words have been added by this user yet.</p>';
             return;
         }
 
@@ -336,7 +342,7 @@ async function loadMyWords() {
 
         container.appendChild(wordList);
     } catch (error) {
-        console.error("Error loading my words:", error);
-        container.innerHTML = '<p>Error loading my words.</p>';
+        console.error("Error loading words:", error);
+        container.innerHTML = '<p>Error loading words.</p>';
     }
 }
