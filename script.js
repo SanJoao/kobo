@@ -511,7 +511,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     },
                     y: { 
                         stacked: true,
-                        ticks: { color: textColor }, 
+                        ticks: { 
+                            color: textColor,
+                            autoSkip: false 
+                        }, 
                         grid: { color: gridColor } 
                     }
                 }
