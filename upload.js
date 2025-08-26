@@ -1,7 +1,8 @@
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
 import { ref, uploadBytesResumable } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-storage.js";
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
-import { auth, storage, db } from "./firebase-init.js";
+import { auth, storage, db, analytics } from "./firebase-init.js";
+import { logEvent } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-analytics.js";
 
 document.addEventListener('DOMContentLoaded', () => {
     const uploadButton = document.getElementById('upload-button');
@@ -70,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Listen for processing status updates
                 listenForProcessingStatus(currentUser.uid);
+                logEvent(analytics, 'upload_highlights');
             }
         );
     }
@@ -84,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const message = document.createElement('p');
                 if (statusData.status === 'success') {
-                    message.textContent = `Successfully processed ${statusData.bookCount} books and ${statusData.highlightCount} highlights.`;
+                    message.textContent = `Successfully processed ${statusData.bookCount} books, ${statusData.highlightCount} highlights and ${statusData.wordCount} words.`;
                     message.style.color = 'green';
                     
                     const profileButton = document.createElement('button');

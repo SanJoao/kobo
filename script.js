@@ -1,8 +1,10 @@
-import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, getAdditionalUserInfo} from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
 import { collection, getDocs, query, where, collectionGroup, limit, doc, getDoc, runTransaction, arrayUnion, arrayRemove, orderBy, startAfter } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
-import { auth, db } from "./firebase-init.js";
+import { auth, db, analytics } from "./firebase-init.js";
 import { loadProfile } from "./profile.js";
+import { logEvent, setUserProperties } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-analytics.js";
 const provider = new GoogleAuthProvider();
+
 
 document.addEventListener('DOMContentLoaded', async () => {
     await loadHeader();
@@ -115,7 +117,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const logoutBtn = document.createElement('button');
             logoutBtn.id = 'logout-btn';
             logoutBtn.textContent = 'Logout';
-            logoutBtn.addEventListener('click', () => signOut(auth));
+            logoutBtn.addEventListener('click', () => {
+                logEvent(analytics, 'logout');
+                signOut(auth);
+            });
 
             userProfileContainer.append(userNameEl, uploadBtn, logoutBtn);
 
@@ -125,10 +130,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             loginBtn.id = 'login-google-btn';
             loginBtn.textContent = 'Sign in with Google';
             loginBtn.addEventListener('click', () => {
-                signInWithPopup(auth, provider).catch(error => {
-                    console.error("Authentication failed:", error);
-                    alert(error.message);
-                });
+                signInWithPopup(auth, provider)
+                    .then((result) => {
+                        const additionalUserInfo = getAdditionalUserInfo(result);
+                        if (additionalUserInfo && additionalUserInfo.isNewUser) {
+                            logEvent(analytics, 'sign_up', { method: 'Google' });
+                        }
+                        logEvent(analytics, 'login', { method: 'Google' });
+                    })
+                    .catch(error => {
+                        console.error("Authentication failed:", error);
+                        alert(error.message);
+                    });
             });
             userProfileContainer.appendChild(loginBtn);
         }
@@ -183,6 +196,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (allHighlights.length > 0) {
                 createCharts(allHighlights, allBooks);
             }
+            logEvent(analytics, 'dark_mode_toggle', { enabled: isDarkMode });
+            setUserProperties(analytics, { dark_mode_enabled: isDarkMode });
         });
     }
 
@@ -227,10 +242,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             const userCount = usersSnapshot.size;
             document.getElementById('user-count').textContent = userCount;
 
-            // This is a simple way to count highlights. For large datasets, a counter in Firestore would be better.
             const highlightsSnapshot = await getDocs(collectionGroup(db, 'highlights'));
             const highlightCount = highlightsSnapshot.size;
             document.getElementById('highlight-count').textContent = highlightCount;
+
+            const wordsSnapshot = await getDocs(collectionGroup(db, 'words'));
+            const wordCount = wordsSnapshot.size;
+            document.getElementById('word-count').textContent = wordCount.toLocaleString();
 
         } catch (error) {
             console.error("Error loading social proof data:", error);
@@ -345,6 +363,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     book_id: originalBookId, // Preserve original highlight's book_id
                     book_title: book && book.title ? book.title : 'Unknown Book'
                 };
+            });
+
+            setUserProperties(analytics, {
+                total_highlights_uploaded: allHighlights.length,
+                total_books_uploaded: allBooks.length
             });
 
             populateBookFilter(allBooks);
@@ -481,6 +504,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 },
                 scales: {
                     x: { 
+                        position: 'top',
                         stacked: true,
                         ticks: { color: textColor }, 
                         grid: { color: gridColor } 
@@ -536,7 +560,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                     },
                     scales: {
-                        x: { ticks: { color: textColor }, grid: { color: gridColor } },
+                        x: { position: 'top', ticks: { color: textColor }, grid: { color: gridColor } },
                         y: { ticks: { color: textColor }, grid: { color: gridColor } }
                     },
                     onClick: (evt, elements) => {
@@ -953,6 +977,7 @@ function createHighlightElement(h, searchTerm = '') {
         shareIcon.addEventListener('click', (e) => {
             e.stopPropagation(); // Prevent opening the modal
             shareHighlight(h.highlight_id);
+            logEvent(analytics, 'share_highlight', { highlight_id: h.highlight_id });
         });
 
         titleEl.appendChild(shareIcon);
@@ -1069,6 +1094,7 @@ async function toggleLike(highlightId, authorId) {
                     });
                     if (likeButton) likeButton.classList.add('liked');
                     if (likeCountSpan) likeCountSpan.textContent = likeCount + 1;
+                    logEvent(analytics, 'like_highlight', { highlight_id: highlightId });
                 } else {
                     // Unlike the highlight
                     transaction.update(highlightRef, {
@@ -1077,6 +1103,7 @@ async function toggleLike(highlightId, authorId) {
                     });
                     if (likeButton) likeButton.classList.remove('liked');
                     if (likeCountSpan) likeCountSpan.textContent = likeCount - 1;
+                    logEvent(analytics, 'unlike_highlight', { highlight_id: highlightId });
                 }
             });
         } catch (error) {
@@ -1100,18 +1127,21 @@ async function toggleLike(highlightId, authorId) {
         const selectedBook = bookFilter.value;
         if (selectedBook !== 'all') {
             filteredHighlights = filteredHighlights.filter(h => h.book_title === selectedBook);
+            logEvent(analytics, 'filter_highlights', { filter_type: 'book', filter_value: selectedBook });
         }
 
         // Filter by type
         const selectedType = typeFilter.value;
         if (selectedType !== 'all') {
             filteredHighlights = filteredHighlights.filter(h => h.type === selectedType);
+            logEvent(analytics, 'filter_highlights', { filter_type: 'type', filter_value: selectedType });
         }
 
         // Filter by color
         const selectedColor = colorFilter.value;
         if (selectedColor !== 'all') {
             filteredHighlights = filteredHighlights.filter(h => h.color == selectedColor);
+            logEvent(analytics, 'filter_highlights', { filter_type: 'color', filter_value: colorMap[selectedColor].name });
         }
 
         // Search
@@ -1121,10 +1151,14 @@ async function toggleLike(highlightId, authorId) {
                 h.text.toLowerCase().includes(searchTerm) ||
                 (h.annotation && h.annotation.toLowerCase().includes(searchTerm))
             );
+            logEvent(analytics, 'search', { search_term: searchTerm });
         }
 
         // Sort
         const sortBy = sortFilter.value;
+        if (sortBy !== 'random') {
+            logEvent(analytics, 'sort_highlights', { sort_by: sortBy });
+        }
         if (sortBy === 'date_desc') {
             filteredHighlights.sort((a, b) => new Date(b.date_created) - new Date(a.date_created));
         } else if (sortBy === 'date_asc') {
@@ -1206,6 +1240,7 @@ async function toggleLike(highlightId, authorId) {
 
         // Store current highlight for sharing
         shareButton.dataset.highlightId = highlight.highlight_id;
+        logEvent(analytics, 'view_highlight_details', { highlight_id: highlight.highlight_id });
     }
 
     function closeFocusModal() {

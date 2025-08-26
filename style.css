@@ -79,6 +79,8 @@ h1 {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .highlight.color-0 { border-color: rgba(255, 235, 59, 1); }
@@ -361,6 +363,27 @@ header h1 {
 
 .tab-content.active {
     display: block;
+}
+
+.word-list {
+    list-style: none;
+    padding: 0;
+}
+
+.word-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px;
+    border-bottom: 1px solid #ccc;
+}
+
+.word-text {
+    font-weight: bold;
+}
+
+.book-title-word {
+    font-style: italic;
+    color: #555;
 }
 
 #char-counter {

@@ -28,6 +28,7 @@ function renderProfile(data, isOwner) {
         <div class="profile-tabs">
             <button class="tab-link active" data-tab="profile-view">Profile</button>
             <button class="tab-link" data-tab="liked-highlights">Liked Highlights</button>
+            <button class="tab-link" data-tab="my-words">My Words</button>
         </div>
         <div id="profile-view" class="tab-content active">
             <h2 id="profile-nickname">${data.nickname || 'Anonymous'}</h2>
@@ -54,6 +55,10 @@ function renderProfile(data, isOwner) {
         <div id="liked-highlights" class="tab-content">
             <h3>Liked Highlights</h3>
             <div id="liked-highlights-container"></div>
+        </div>
+        <div id="my-words" class="tab-content">
+            <h3>My Words</h3>
+            <div id="my-words-container"></div>
         </div>
         <div id="profile-edit" style="display: none;">
             <form id="profile-form">
@@ -202,6 +207,12 @@ function renderProfile(data, isOwner) {
                 if (dashboard) dashboard.style.display = 'none';
                 if (filters) filters.style.display = 'none';
                 if (highlightsContainer) highlightsContainer.style.display = 'none';
+            } else if (tabId === 'my-words') {
+                loadMyWords();
+                // Ocultar dashboard y filtros
+                if (dashboard) dashboard.style.display = 'none';
+                if (filters) filters.style.display = 'none';
+                if (highlightsContainer) highlightsContainer.style.display = 'none';
             } else {
                 // Mostrar dashboard y filtros para otras pestañas
                 if (dashboard) dashboard.style.display = 'flex';
@@ -272,4 +283,60 @@ async function getUsersData(userIds) {
         });
     }
     return users;
+}
+
+async function loadMyWords() {
+    const container = document.getElementById('my-words-container');
+    if (!container) return;
+    container.innerHTML = '<p>Loading my words...</p>';
+
+    const user = auth.currentUser;
+    if (!user) {
+        container.innerHTML = '<p>Please log in to see your words.</p>';
+        return;
+    }
+
+    try {
+        const wordsQuery = query(collection(db, `users/${user.uid}/words`));
+        const snapshot = await getDocs(wordsQuery);
+
+        if (snapshot.empty) {
+            container.innerHTML = '<p>No words found. Please upload your KoboReader.sqlite file.</p>';
+            return;
+        }
+
+        const words = snapshot.docs.map(doc => doc.data());
+        words.sort((a, b) => new Date(b.DateCreated) - new Date(a.DateCreated));
+
+        container.innerHTML = '';
+        const wordList = document.createElement('ul');
+        wordList.classList.add('word-list');
+
+        words.forEach(word => {
+            const wordItem = document.createElement('li');
+            wordItem.classList.add('word-item');
+
+            const wordText = document.createElement('span');
+            wordText.classList.add('word-text');
+            wordText.textContent = word.Text;
+
+            const bookTitle = document.createElement('span');
+            bookTitle.classList.add('book-title-word');
+            bookTitle.textContent = word.BookTitle;
+
+            const wordDate = document.createElement('span');
+            wordDate.classList.add('word-date');
+            wordDate.textContent = new Date(word.DateCreated).toLocaleString();
+
+            wordItem.appendChild(wordText);
+            wordItem.appendChild(bookTitle);
+            wordItem.appendChild(wordDate);
+            wordList.appendChild(wordItem);
+        });
+
+        container.appendChild(wordList);
+    } catch (error) {
+        console.error("Error loading my words:", error);
+        container.innerHTML = '<p>Error loading my words.</p>';
+    }
 }

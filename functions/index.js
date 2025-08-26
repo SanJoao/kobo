@@ -41,6 +41,7 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
         let operationCount = 0;
         let bookCount = 0;
         let highlightCount = 0;
+        let wordCount = 0;
         const BATCH_LIMIT = 490;
 
         // 1. Process books in a streaming fashion
@@ -121,18 +122,61 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
             }
         });
 
-        // 3. Commit any remaining operations in the last batch
+        // 4. Process WordList
+        const wordListQuery = "SELECT Text, DateCreated, VolumeId FROM WordList;";
+        const words = await sqliteDb.all(wordListQuery);
+
+        for (const word of words) {
+            if (word && word.Text && word.VolumeId) {
+                let bookTitle = "Unknown Book";
+                try {
+                    const url = new URL(word.VolumeId);
+                    const filename = path.basename(url.pathname);
+                    const decodedFilename = decodeURIComponent(filename);
+                    bookTitle = path.parse(decodedFilename).name;
+                } catch (e) {
+                    logger.warn(`Could not parse VolumeId for word: ${word.VolumeId}`);
+                }
+
+                const uniqueString = `${userId}-${bookTitle}-${word.Text}`;
+                const wordId = crypto.createHash('sha1').update(uniqueString).digest('hex');
+                const wordRef = db.collection("users").doc(userId).collection("words").doc(wordId);
+                
+                batch.set(wordRef, {
+                    Text: word.Text,
+                    DateCreated: word.DateCreated,
+                    BookTitle: bookTitle,
+                }, { merge: true });
+
+                operationCount++;
+                wordCount++;
+
+                if (operationCount >= BATCH_LIMIT) {
+                    await batch.commit();
+                    batch = db.batch();
+                    operationCount = 0;
+                }
+            }
+        }
+
+        logger.log(`Successfully processed and saved ${bookCount} books, ${highlightCount} highlights, and ${wordCount} words.`);
+
+        // Commit any remaining operations from all steps
         if (operationCount > 0) {
             await batch.commit();
         }
 
-        logger.log(`Successfully processed and saved ${bookCount} books and ${highlightCount} highlights.`);
+        // Ensure the user document exists by setting a field on it.
+        const userRef = db.collection("users").doc(userId);
+        await userRef.set({ 
+            lastUpload: admin.firestore.FieldValue.serverTimestamp() 
+        }, { merge: true });
 
-        // 4. Update status
+        // 5. Update status
         if (bookCount > 0 && highlightCount === 0) {
-            await statusRef.set({ status: 'no_highlights', bookCount: bookCount, highlightCount: 0 });
+            await statusRef.set({ status: 'no_highlights', bookCount: bookCount, highlightCount: 0, wordCount: wordCount });
         } else {
-            await statusRef.set({ status: 'success', bookCount: bookCount, highlightCount: highlightCount });
+            await statusRef.set({ status: 'success', bookCount: bookCount, highlightCount: highlightCount, wordCount: wordCount });
         }
 
     } catch (error) {

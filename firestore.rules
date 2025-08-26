@@ -17,5 +17,10 @@ service cloud.firestore {
     match /processingStatus/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
     }
+
+    // Allow public read access to all 'words' collections
+    match /{path=**}/words/{wordId} {
+      allow read: if true;
+    }
   }
 }
