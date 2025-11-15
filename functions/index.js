@@ -928,3 +928,275 @@ exports.deleteComment = onCall(async (request) => {
         throw new Error(error.message || 'Failed to delete comment');
     }
 });
+
+/**
+ * Notifications System
+ * Creates notifications for important events
+ */
+
+/**
+ * Helper function to create a notification
+ */
+async function createNotification(db, userId, notificationData) {
+    try {
+        await db.collection('users').doc(userId).collection('notifications').add({
+            ...notificationData,
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            read: false
+        });
+
+        // Increment unread count
+        await db.collection('users').doc(userId).update({
+            unreadNotifications: admin.firestore.FieldValue.increment(1)
+        });
+
+        logger.log(`Notification created for user ${userId}`);
+    } catch (error) {
+        logger.error('Error creating notification:', error);
+    }
+}
+
+/**
+ * Trigger: Notify when someone comments on your highlight
+ */
+exports.onCommentCreated = onDocumentCreated(
+    "users/{userId}/highlights/{highlightId}/comments/{commentId}",
+    async (event) => {
+        const highlightOwnerId = event.params.userId;
+        const highlightId = event.params.highlightId;
+        const commentId = event.params.commentId;
+        const commentData = event.data.data();
+
+        const db = getFirestore();
+
+        try {
+            // Don't notify if commenting on own highlight
+            if (commentData.userId === highlightOwnerId) {
+                return;
+            }
+
+            // Get highlight data
+            const highlightDoc = await db
+                .collection('users')
+                .doc(highlightOwnerId)
+                .collection('highlights')
+                .doc(highlightId)
+                .get();
+
+            if (!highlightDoc.exists) {
+                return;
+            }
+
+            const highlightData = highlightDoc.data();
+
+            // Create notification
+            if (commentData.parentId) {
+                // This is a reply - notify the parent comment author
+                const parentCommentDoc = await db
+                    .collection('users')
+                    .doc(highlightOwnerId)
+                    .collection('highlights')
+                    .doc(highlightId)
+                    .collection('comments')
+                    .doc(commentData.parentId)
+                    .get();
+
+                if (parentCommentDoc.exists) {
+                    const parentCommentData = parentCommentDoc.data();
+                    const parentAuthorId = parentCommentData.userId;
+
+                    // Don't notify if replying to own comment
+                    if (parentAuthorId !== commentData.userId) {
+                        await createNotification(db, parentAuthorId, {
+                            type: 'comment_reply',
+                            actorId: commentData.userId,
+                            actorName: commentData.userName,
+                            actorPhotoURL: commentData.userPhotoURL,
+                            highlightId: highlightId,
+                            highlightText: highlightData.text?.substring(0, 100) || '',
+                            commentId: commentId,
+                            commentText: commentData.text.substring(0, 100),
+                            highlightOwnerId: highlightOwnerId
+                        });
+                    }
+                }
+            } else {
+                // Top-level comment - notify highlight owner
+                await createNotification(db, highlightOwnerId, {
+                    type: 'new_comment',
+                    actorId: commentData.userId,
+                    actorName: commentData.userName,
+                    actorPhotoURL: commentData.userPhotoURL,
+                    highlightId: highlightId,
+                    highlightText: highlightData.text?.substring(0, 100) || '',
+                    commentId: commentId,
+                    commentText: commentData.text.substring(0, 100)
+                });
+            }
+
+            logger.log(`Comment notification created for highlight ${highlightId}`);
+
+        } catch (error) {
+            logger.error('Error creating comment notification:', error);
+        }
+    }
+);
+
+/**
+ * Trigger: Notify when someone follows you
+ */
+exports.onNewFollower = onDocumentCreated(
+    "users/{userId}/followers/{followerId}",
+    async (event) => {
+        const userId = event.params.userId;
+        const followerId = event.params.followerId;
+
+        const db = getFirestore();
+
+        try {
+            // Get follower info
+            const followerDoc = await db.collection('users').doc(followerId).get();
+
+            if (!followerDoc.exists) {
+                return;
+            }
+
+            const followerData = followerDoc.data();
+
+            // Create notification
+            await createNotification(db, userId, {
+                type: 'new_follower',
+                actorId: followerId,
+                actorName: followerData.displayName || 'Anonymous',
+                actorPhotoURL: followerData.photoURL || null
+            });
+
+            logger.log(`Follower notification created: ${followerId} followed ${userId}`);
+
+        } catch (error) {
+            logger.error('Error creating follower notification:', error);
+        }
+    }
+);
+
+/**
+ * Mark notification as read
+ */
+exports.markNotificationRead = onCall(async (request) => {
+    const { auth, data } = request;
+
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const { notificationId } = data;
+
+    if (!notificationId) {
+        throw new Error('notificationId is required');
+    }
+
+    const db = getFirestore();
+
+    try {
+        const notificationRef = db
+            .collection('users')
+            .doc(userId)
+            .collection('notifications')
+            .doc(notificationId);
+
+        const notificationDoc = await notificationRef.get();
+
+        if (!notificationDoc.exists) {
+            throw new Error('Notification not found');
+        }
+
+        const notificationData = notificationDoc.data();
+
+        // Only mark as read if it's currently unread
+        if (!notificationData.read) {
+            await notificationRef.update({
+                read: true,
+                readAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            // Decrement unread count
+            await db.collection('users').doc(userId).update({
+                unreadNotifications: admin.firestore.FieldValue.increment(-1)
+            });
+        }
+
+        logger.log(`Notification ${notificationId} marked as read`);
+
+        return {
+            success: true,
+            message: 'Notification marked as read'
+        };
+
+    } catch (error) {
+        logger.error('Error marking notification as read:', error);
+        throw new Error(error.message || 'Failed to mark notification as read');
+    }
+});
+
+/**
+ * Mark all notifications as read
+ */
+exports.markAllNotificationsRead = onCall(async (request) => {
+    const { auth } = request;
+
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const db = getFirestore();
+
+    try {
+        // Get all unread notifications
+        const unreadQuery = await db
+            .collection('users')
+            .doc(userId)
+            .collection('notifications')
+            .where('read', '==', false)
+            .get();
+
+        if (unreadQuery.empty) {
+            return {
+                success: true,
+                message: 'No unread notifications',
+                count: 0
+            };
+        }
+
+        const batch = db.batch();
+        let count = 0;
+
+        unreadQuery.docs.forEach(doc => {
+            batch.update(doc.ref, {
+                read: true,
+                readAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            count++;
+        });
+
+        await batch.commit();
+
+        // Reset unread count
+        await db.collection('users').doc(userId).update({
+            unreadNotifications: 0
+        });
+
+        logger.log(`Marked ${count} notifications as read for user ${userId}`);
+
+        return {
+            success: true,
+            message: `Marked ${count} notifications as read`,
+            count
+        };
+
+    } catch (error) {
+        logger.error('Error marking all notifications as read:', error);
+        throw new Error(error.message || 'Failed to mark all notifications as read');
+    }
+});

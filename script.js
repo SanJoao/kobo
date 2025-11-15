@@ -127,6 +127,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Initialize feed link and unread count
             initializeFeedLink(user);
 
+            // Initialize notification bell
+            if (window.notificationUI) {
+                window.notificationUI.initializeNotificationBell();
+            }
+
         } else {
             // User is signed out
             const loginBtn = document.createElement('button');
