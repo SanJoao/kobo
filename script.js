@@ -423,6 +423,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             filterAndSort();
             checkForUrlHighlight();
 
+            // Initialize discovery widgets
+            if (window.discoveryWidgets && userId === auth.currentUser?.uid) {
+                await window.discoveryWidgets.initializeWidgets('discovery-widgets-container');
+            }
+
         } catch (error) {
             console.error("Error loading user data from Firestore:", error);
         }

@@ -915,3 +915,298 @@ body.dark-mode .follow-button.following {
     background: #4CAF50;
     color: white;
 }
+
+/* Content with Sidebar Layout */
+.content-with-sidebar {
+    display: grid;
+    grid-template-columns: 1fr 350px;
+    gap: 30px;
+    margin-top: 20px;
+}
+
+.main-column {
+    min-width: 0; /* Prevent grid blowout */
+}
+
+.sidebar {
+    position: sticky;
+    top: 20px;
+    align-self: start;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+}
+
+/* Discovery Widgets */
+.discovery-widgets {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.discovery-widget {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.discovery-widget-header {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #f0f0f0;
+}
+
+.discovery-widget-header h3 {
+    margin: 0 0 4px 0;
+    font-size: 18px;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.discovery-widget-header i {
+    color: #4CAF50;
+}
+
+.discovery-widget-subtitle {
+    margin: 0;
+    font-size: 13px;
+    color: #999;
+}
+
+.discovery-user-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.discovery-user-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: #f9f9f9;
+    border-radius: 8px;
+    transition: all 0.3s;
+}
+
+.discovery-user-card:hover {
+    background: #f0f0f0;
+    transform: translateX(4px);
+}
+
+.discovery-user-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    text-decoration: none;
+    color: inherit;
+    min-width: 0;
+}
+
+.discovery-user-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    object-fit: cover;
+}
+
+.discovery-user-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.discovery-user-name {
+    margin: 0 0 4px 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.discovery-user-reason {
+    margin: 0 0 4px 0;
+    font-size: 13px;
+    color: #666;
+}
+
+.discovery-user-stats {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: #999;
+}
+
+.discovery-user-stats i {
+    font-size: 11px;
+    margin-right: 4px;
+}
+
+.discovery-follow-btn {
+    padding: 6px 14px;
+    background: white;
+    border: 2px solid #4CAF50;
+    color: #4CAF50;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.discovery-follow-btn:hover {
+    background: #4CAF50;
+    color: white;
+}
+
+.discovery-follow-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.discovery-follow-btn.following {
+    background: #4CAF50;
+    color: white;
+    border-color: #4CAF50;
+}
+
+.discovery-loading {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.discovery-loading i {
+    font-size: 32px;
+    color: #4CAF50;
+    margin-bottom: 12px;
+}
+
+.discovery-loading p {
+    margin: 0;
+    color: #666;
+    font-size: 14px;
+}
+
+.discovery-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: #999;
+}
+
+.discovery-empty i {
+    font-size: 48px;
+    color: #ddd;
+    margin-bottom: 12px;
+}
+
+.discovery-empty p {
+    margin: 8px 0;
+    font-size: 14px;
+}
+
+.discovery-empty-hint {
+    font-size: 13px;
+    color: #bbb;
+}
+
+.discovery-error {
+    text-align: center;
+    padding: 20px;
+    color: #f44336;
+    font-size: 14px;
+}
+
+/* Dark mode support for discovery widgets */
+body.dark-mode .discovery-widget {
+    background: #1e1e1e;
+}
+
+body.dark-mode .discovery-widget-header {
+    border-bottom-color: #2a2a2a;
+}
+
+body.dark-mode .discovery-widget-header h3 {
+    color: #e0e0e0;
+}
+
+body.dark-mode .discovery-user-card {
+    background: #2a2a2a;
+}
+
+body.dark-mode .discovery-user-card:hover {
+    background: #333;
+}
+
+body.dark-mode .discovery-user-name {
+    color: #e0e0e0;
+}
+
+body.dark-mode .discovery-user-reason {
+    color: #bbb;
+}
+
+body.dark-mode .discovery-user-stats {
+    color: #999;
+}
+
+body.dark-mode .discovery-follow-btn {
+    background: #1e1e1e;
+    border-color: #4CAF50;
+    color: #4CAF50;
+}
+
+body.dark-mode .discovery-follow-btn:hover {
+    background: #4CAF50;
+    color: white;
+}
+
+body.dark-mode .discovery-loading,
+body.dark-mode .discovery-empty {
+    color: #999;
+}
+
+/* Responsive: Stack sidebar below main content on tablets */
+@media (max-width: 1024px) {
+    .content-with-sidebar {
+        grid-template-columns: 1fr;
+    }
+
+    .sidebar {
+        position: static;
+        max-height: none;
+    }
+
+    .discovery-widgets {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+    }
+}
+
+/* Mobile: Full width */
+@media (max-width: 768px) {
+    .content-with-sidebar {
+        gap: 20px;
+    }
+
+    .discovery-widgets {
+        grid-template-columns: 1fr;
+    }
+
+    .discovery-user-avatar {
+        width: 40px;
+        height: 40px;
+    }
+
+    .discovery-user-stats {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+}

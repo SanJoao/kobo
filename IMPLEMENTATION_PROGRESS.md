@@ -113,12 +113,12 @@ This document tracks the implementation of improvements outlined in the `/docs` 
 - [x] Create follow button on profiles (follow-manager.js + profile.js)
 - [x] Build following/followers list pages (connections.html - 415 lines)
 - [x] Update Firestore security rules (already done - followers/following subcollections)
-- [ ] Implement "Readers Like You" recommendation algorithm
-- [ ] Create user discovery widget
-- [ ] Add "Popular in Your Network" widget
+- [x] Implement "Readers Like You" recommendation algorithm
+- [x] Create user discovery widget
+- [x] Add "Popular in Your Network" widget
 - [ ] Track follow analytics
 
-**Status:** ✅ 60% COMPLETE (6/10 tasks done)
+**Status:** ✅ 90% COMPLETE (9/10 tasks done)
 **Priority:** P0
 
 ---
@@ -447,9 +447,40 @@ This document tracks the implementation of improvements outlined in the `/docs` 
     - Real-time badge updates
     - Show/hide logic based on auth state
 
+**Current Session (Continued) - Phase 3C: User Discovery:**
+34. ✅ Created user-discovery.js - Recommendation algorithms (350 lines)
+    - getReadersLikeYou() - Jaccard similarity for similar book readers
+    - getPopularInNetwork() - Friend-of-friend recommendations
+    - getTrendingUsers() - Active readers with recent uploads
+    - Caching with 5-minute TTL for performance
+    - renderUserCard() for consistent UI
+    - XSS protection with HTML escaping
+35. ✅ Created discovery-widgets.js - UI components (150 lines)
+    - "Readers Like You" widget
+    - "Popular in Your Network" widget
+    - "Trending Readers" widget
+    - Loading and empty states
+    - Real-time follow buttons
+    - Responsive card layout
+36. ✅ Updated index.html - Sidebar layout
+    - Added content-with-sidebar grid layout
+    - Created discovery-widgets-container in sidebar
+    - Loaded user-discovery.js and discovery-widgets.js
+37. ✅ Updated script.js - Discovery widget initialization
+    - Initialize widgets in loadUserData()
+    - Only show for current user's profile
+38. ✅ Updated style.css - Discovery widget styles (+250 lines)
+    - Two-column grid layout (main + sidebar)
+    - Discovery widget cards
+    - User cards with avatars
+    - Follow buttons in widgets
+    - Sticky sidebar
+    - Dark mode support
+    - Responsive design (stacks on mobile)
+
 **Phase 1 Status: 95% COMPLETE** (Only 2 optional items remaining: Firebase Performance Monitoring, lazy loading)
 **Phase 2 Status: 90% COMPLETE** (Only analytics tracking remaining)
-**Phase 3 Status: 85% COMPLETE** (Following system + Activity feed done, discovery widgets remaining)
+**Phase 3 Status: 95% COMPLETE** (Following system + Activity feed + Discovery widgets done! Only analytics tracking remaining)
 
 **Next Steps:**
 1. Deploy Cloud Functions: `firebase deploy --only functions`

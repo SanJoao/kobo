@@ -56,58 +56,65 @@
             <div id="loading-indicator" style="display: none;">Loading...</div>
         </div>
         <div id="main-content" class="container">
-        <div id="dashboard">
-            <div id="time-spent-chart-container" class="chart-container">
-                <div class="chart-wrapper">
-                    <canvas id="time-spent-chart"></canvas>
+        <div class="content-with-sidebar">
+            <div class="main-column">
+                <div id="dashboard">
+                    <div id="time-spent-chart-container" class="chart-container">
+                        <div class="chart-wrapper">
+                            <canvas id="time-spent-chart"></canvas>
+                        </div>
+                    </div>
+                    <div id="books-chart-container" class="chart-container">
+                        <div class="chart-wrapper">
+                            <canvas id="books-chart"></canvas>
+                        </div>
+                    </div>
+                    <div id="colors-chart-container" class="chart-container">
+                        <canvas id="colors-chart"></canvas>
+                    </div>
+                    <div class="chart-container full-width">
+                        <div id="timeline-filters">
+                            <button data-filter="day">Day</button>
+                            <button data-filter="week">Week</button>
+                            <button data-filter="month">Month</button>
+                            <button data-filter="ytd">YTD</button>
+                            <button data-filter="1y">1Y</button>
+                            <button data-filter="max">MAX</button>
+                        </div>
+                        <canvas id="timeline-chart"></canvas>
+                    </div>
                 </div>
-            </div>
-            <div id="books-chart-container" class="chart-container">
-                <div class="chart-wrapper">
-                    <canvas id="books-chart"></canvas>
+                <div class="filters">
+                    <select id="book-filter">
+                        <option value="all">All Books</option>
+                    </select>
+                    <select id="type-filter">
+                        <option value="all">All Types</option>
+                        <option value="highlight">Highlights</option>
+                        <option value="note">Notes</option>
+                    </select>
+                    <select id="color-filter">
+                        <option value="all">All Colors</option>
+                        <option value="0">Yellow</option>
+                        <option value="1">Pink</option>
+                        <option value="2">Blue</option>
+                        <option value="3">Green</option>
+                    </select>
+                    <select id="sort-filter">
+                        <option value="random" selected>Random</option>
+                        <option value="likes_desc">Likes</option>
+                        <option value="date_desc">Newest First</option>
+                        <option value="date_asc">Oldest First</option>
+                        <option value="book_asc">By Book (A-Z)</option>
+                    </select>
+                    <input type="text" id="search-input" placeholder="Search highlights...">
                 </div>
+                <div id="highlights-container"></div>
             </div>
-            <div id="colors-chart-container" class="chart-container">
-                <canvas id="colors-chart"></canvas>
-            </div>
-            <div class="chart-container full-width">
-                <div id="timeline-filters">
-                    <button data-filter="day">Day</button>
-                    <button data-filter="week">Week</button>
-                    <button data-filter="month">Month</button>
-                    <button data-filter="ytd">YTD</button>
-                    <button data-filter="1y">1Y</button>
-                    <button data-filter="max">MAX</button>
-                </div>
-                <canvas id="timeline-chart"></canvas>
-            </div>
+            <aside class="sidebar">
+                <div id="discovery-widgets-container"></div>
+            </aside>
         </div>
-        <div class="filters">
-            <select id="book-filter">
-                <option value="all">All Books</option>
-            </select>
-            <select id="type-filter">
-                <option value="all">All Types</option>
-                <option value="highlight">Highlights</option>
-                <option value="note">Notes</option>
-            </select>
-            <select id="color-filter">
-                <option value="all">All Colors</option>
-                <option value="0">Yellow</option>
-                <option value="1">Pink</option>
-                <option value="2">Blue</option>
-                <option value="3">Green</option>
-            </select>
-            <select id="sort-filter">
-                <option value="random" selected>Random</option>
-                <option value="likes_desc">Likes</option>
-                <option value="date_desc">Newest First</option>
-                <option value="date_asc">Oldest First</option>
-                <option value="book_asc">By Book (A-Z)</option>
-            </select>
-            <input type="text" id="search-input" placeholder="Search highlights...">
-        </div>
-        <div id="highlights-container"></div>
         </div>
         <div class="dark-mode-toggle">
             <i class="fas fa-moon"></i>
@@ -131,6 +138,8 @@
     <script type="module" src="/public-link-generator.js"></script>
     <script type="module" src="/follow-manager.js"></script>
     <script type="module" src="/feed-manager.js"></script>
+    <script type="module" src="/user-discovery.js"></script>
+    <script type="module" src="/discovery-widgets.js"></script>
     <script type="module" src="/export-manager.js"></script>
     <script type="module" src="/script.js"></script>
 </body>
