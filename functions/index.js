@@ -44,6 +44,20 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
         let wordCount = 0;
         const BATCH_LIMIT = 490;
 
+        // Helper function to commit batch with retry logic
+        async function commitBatchWithRetry(batchToCommit, retries = 3) {
+            try {
+                await batchToCommit.commit();
+            } catch (error) {
+                if (retries > 0 && (error.code === 'deadline-exceeded' || error.code === 'unavailable')) {
+                    logger.warn(`Batch commit failed, retrying... (${retries} attempts left)`);
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
+                    return commitBatchWithRetry(batchToCommit, retries - 1);
+                }
+                throw error;
+            }
+        }
+
         // 1. Process books in a streaming fashion
         const bookQuery = `
             SELECT
@@ -74,7 +88,7 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
                 bookCount++;
 
                 if (operationCount >= BATCH_LIMIT) {
-                    batch.commit();
+                    await commitBatchWithRetry(batch);
                     batch = db.batch();
                     operationCount = 0;
                 }
@@ -115,7 +129,7 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
                 highlightCount++;
 
                 if (operationCount >= BATCH_LIMIT) {
-                    batch.commit();
+                    await commitBatchWithRetry(batch);
                     batch = db.batch();
                     operationCount = 0;
                 }
@@ -163,7 +177,7 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
 
         // Commit any remaining operations from all steps
         if (operationCount > 0) {
-            await batch.commit();
+            await commitBatchWithRetry(batch);
         }
 
         // Ensure the user document exists by setting a field on it.
