@@ -124,19 +124,19 @@ This document tracks the implementation of improvements outlined in the `/docs` 
 ---
 
 #### Activity Feed (Week 11-12)
-- [ ] Create Firestore schema for activity feed
-- [ ] Build fan-out-on-write Cloud Function for new highlights
-- [ ] Build fan-out-on-write for finished books
-- [ ] Add feed cleanup function (TTL: 30 days, limit: 100 items)
-- [ ] Create feed UI component
-- [ ] Add real-time Firestore listeners
-- [ ] Implement infinite scroll pagination
-- [ ] Add pull-to-refresh
-- [ ] Create "Feed" tab on homepage
-- [ ] Add mark-as-read functionality
+- [x] Create Firestore schema for activity feed
+- [x] Build fan-out-on-write Cloud Function for new highlights
+- [x] Build fan-out-on-write for finished books
+- [x] Add feed cleanup function (TTL: 30 days, limit: 100 items)
+- [x] Create feed UI component
+- [x] Add real-time Firestore listeners
+- [x] Implement infinite scroll pagination
+- [x] Add pull-to-refresh
+- [x] Create "Feed" tab on homepage
+- [x] Add mark-as-read functionality
 - [ ] Track feed engagement analytics
 
-**Status:** Not Started
+**Status:** ✅ 90% COMPLETE (10/11 tasks done)
 **Priority:** P0
 
 ---
@@ -403,20 +403,66 @@ This document tracks the implementation of improvements outlined in the `/docs` 
 26. ✅ Loaded follow-manager.js in index.html
     - Available globally for all pages
 
+**Current Session (Continued) - Phase 3B: Activity Feed:**
+27. ✅ Created Cloud Functions for activity feed (functions/index.js - +300 lines)
+    - onCreateHighlight() - Fans out new highlights to all followers' feeds
+    - onFinishBook() - Fans out finished books to all followers' feeds
+    - cleanupFeeds() - Daily scheduled cleanup (30-day TTL, 100 item limit)
+    - Fan-out-on-write pattern for optimal read performance
+    - Atomic batch operations for reliability
+    - Activity types: highlight, finished_book
+28. ✅ Created feed-manager.js - Client-side feed operations (380 lines)
+    - Load feed items with pagination
+    - Real-time Firestore listeners
+    - Infinite scroll support (loadMoreFeed)
+    - Mark items as read (single/all)
+    - Unread count tracking
+    - Pull-to-refresh functionality
+    - Time ago formatting
+    - XSS protection with HTML escaping
+29. ✅ Created feed.html - Activity feed page (450 lines)
+    - Responsive feed UI with infinite scroll
+    - Pull-to-refresh for mobile
+    - Unread/read visual states
+    - Two feed item types (highlight, finished_book)
+    - Mark all as read button
+    - Load more button
+    - Empty states with CTAs
+    - Loading states
+30. ✅ Updated header.html - Added feed navigation
+    - Feed link in header with RSS icon
+    - Unread count badge
+    - Shows only when user is logged in
+31. ✅ Updated style.css - Feed navigation styles (+53 lines)
+    - Header navigation layout
+    - Feed link hover states
+    - Unread badge with red background
+    - Dark mode support
+    - Responsive design
+32. ✅ Updated index.html - Loaded feed-manager.js
+    - Available globally for feed functionality
+33. ✅ Updated script.js - Feed link initialization
+    - initializeFeedLink() function
+    - Subscribe to unread count updates
+    - Real-time badge updates
+    - Show/hide logic based on auth state
+
 **Phase 1 Status: 95% COMPLETE** (Only 2 optional items remaining: Firebase Performance Monitoring, lazy loading)
 **Phase 2 Status: 90% COMPLETE** (Only analytics tracking remaining)
-**Phase 3 Status: 60% COMPLETE** (Core following system done, discovery widgets remaining)
+**Phase 3 Status: 85% COMPLETE** (Following system + Activity feed done, discovery widgets remaining)
 
 **Next Steps:**
-1. Deploy Firestore indexes: `firebase deploy --only firestore:indexes`
-2. Deploy Firestore security rules: `firebase deploy --only firestore:rules`
-3. Test public highlight links end-to-end
-4. Test privacy settings with multiple users
-5. Test data export functionality
-6. Add Firebase Performance Monitoring (optional)
-7. Implement lazy loading for highlights (optional)
-8. Add analytics tracking for exports and shares (optional)
-9. Move to Phase 3: Social features (following system, activity feed)
+1. Deploy Cloud Functions: `firebase deploy --only functions`
+2. Deploy Firestore indexes: `firebase deploy --only firestore:indexes`
+3. Deploy Firestore security rules: `firebase deploy --only firestore:rules`
+4. Test activity feed end-to-end (create highlights, finish books, check feeds)
+5. Test public highlight links end-to-end
+6. Test privacy settings with multiple users
+7. Test data export functionality
+8. Implement user discovery widgets (Phase 3 remaining)
+9. Add Firebase Performance Monitoring (optional)
+10. Implement lazy loading for highlights (optional)
+11. Add analytics tracking for exports, shares, and feed engagement (optional)
 
 ---
 

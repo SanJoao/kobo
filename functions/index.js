@@ -1,5 +1,7 @@
 const { onObjectFinalized } = require("firebase-functions/v2/storage");
 const { onCall } = require("firebase-functions/v2/https");
+const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { getStorage } = require("firebase-admin/storage");
 const { getFirestore } = require("firebase-admin/firestore");
 const admin = require("firebase-admin");
@@ -376,5 +378,305 @@ exports.unfollowUser = onCall(async (request) => {
     } catch (error) {
         logger.error('Error unfollowing user:', error);
         throw new Error(error.message || 'Failed to unfollow user');
+    }
+});
+
+/**
+ * Activity Feed: Fan out new highlights to followers
+ * Triggered when a new highlight is created
+ */
+exports.onCreateHighlight = onDocumentCreated(
+    "users/{userId}/highlights/{highlightId}",
+    async (event) => {
+        const userId = event.params.userId;
+        const highlightId = event.params.highlightId;
+        const highlightData = event.data.data();
+
+        const db = getFirestore();
+
+        try {
+            // Get user info (actor)
+            const userDoc = await db.collection('users').doc(userId).get();
+            if (!userDoc.exists) {
+                logger.warn(`User ${userId} not found`);
+                return;
+            }
+
+            const userData = userDoc.data();
+
+            // Get book info
+            let bookTitle = 'Unknown Book';
+            let bookAuthor = 'Unknown Author';
+
+            if (highlightData.book_id) {
+                const bookDoc = await db
+                    .collection('users')
+                    .doc(userId)
+                    .collection('books')
+                    .doc(highlightData.book_id)
+                    .get();
+
+                if (bookDoc.exists) {
+                    const bookData = bookDoc.data();
+                    bookTitle = bookData.title || bookTitle;
+
+                    // Extract author from book_id or title
+                    if (highlightData.book_id.includes('/')) {
+                        const parts = highlightData.book_id.split('/');
+                        if (parts.length > 1) {
+                            bookAuthor = parts[0];
+                        }
+                    }
+                }
+            }
+
+            // Get all followers
+            const followersSnapshot = await db
+                .collection('users')
+                .doc(userId)
+                .collection('followers')
+                .get();
+
+            if (followersSnapshot.empty) {
+                logger.log(`User ${userId} has no followers, skipping feed fanout`);
+                return;
+            }
+
+            const batch = db.batch();
+            let batchCount = 0;
+            const BATCH_LIMIT = 490;
+
+            // Create feed item for each follower
+            for (const followerDoc of followersSnapshot.docs) {
+                const followerId = followerDoc.data().userId;
+
+                const feedItemRef = db
+                    .collection('users')
+                    .doc(followerId)
+                    .collection('feed')
+                    .doc(); // Auto-generate ID
+
+                const feedItem = {
+                    actorId: userId,
+                    actorName: userData.displayName || 'Anonymous',
+                    actorPhotoURL: userData.photoURL || null,
+                    action: 'highlight',
+                    highlightId: highlightId,
+                    highlightText: highlightData.text || '',
+                    annotation: highlightData.annotation || null,
+                    bookId: highlightData.book_id || null,
+                    bookTitle: bookTitle,
+                    bookAuthor: bookAuthor,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    read: false
+                };
+
+                batch.set(feedItemRef, feedItem);
+                batchCount++;
+
+                if (batchCount >= BATCH_LIMIT) {
+                    await batch.commit();
+                    batchCount = 0;
+                }
+            }
+
+            // Commit remaining operations
+            if (batchCount > 0) {
+                await batch.commit();
+            }
+
+            logger.log(`Fanned out highlight ${highlightId} to ${followersSnapshot.size} followers`);
+
+        } catch (error) {
+            logger.error('Error fanning out highlight:', error);
+        }
+    }
+);
+
+/**
+ * Activity Feed: Fan out finished books to followers
+ * Triggered when a book is updated to 100% read
+ */
+exports.onFinishBook = onDocumentUpdated(
+    "users/{userId}/books/{bookId}",
+    async (event) => {
+        const userId = event.params.userId;
+        const bookId = event.params.bookId;
+        const beforeData = event.data.before.data();
+        const afterData = event.data.after.data();
+
+        const db = getFirestore();
+
+        try {
+            // Check if book was just finished (percent_read reached 100)
+            const wasFinished = beforeData.percent_read >= 100;
+            const isFinished = afterData.percent_read >= 100;
+
+            if (wasFinished || !isFinished) {
+                // Book was already finished or not finished yet
+                return;
+            }
+
+            // Get user info (actor)
+            const userDoc = await db.collection('users').doc(userId).get();
+            if (!userDoc.exists) {
+                logger.warn(`User ${userId} not found`);
+                return;
+            }
+
+            const userData = userDoc.data();
+
+            // Extract book info
+            const bookTitle = afterData.title || 'Unknown Book';
+            let bookAuthor = 'Unknown Author';
+
+            if (bookId.includes('/')) {
+                const parts = bookId.split('/');
+                if (parts.length > 1) {
+                    bookAuthor = parts[0];
+                }
+            }
+
+            // Get all followers
+            const followersSnapshot = await db
+                .collection('users')
+                .doc(userId)
+                .collection('followers')
+                .get();
+
+            if (followersSnapshot.empty) {
+                logger.log(`User ${userId} has no followers, skipping feed fanout`);
+                return;
+            }
+
+            const batch = db.batch();
+            let batchCount = 0;
+            const BATCH_LIMIT = 490;
+
+            // Create feed item for each follower
+            for (const followerDoc of followersSnapshot.docs) {
+                const followerId = followerDoc.data().userId;
+
+                const feedItemRef = db
+                    .collection('users')
+                    .doc(followerId)
+                    .collection('feed')
+                    .doc(); // Auto-generate ID
+
+                const feedItem = {
+                    actorId: userId,
+                    actorName: userData.displayName || 'Anonymous',
+                    actorPhotoURL: userData.photoURL || null,
+                    action: 'finished_book',
+                    bookId: bookId,
+                    bookTitle: bookTitle,
+                    bookAuthor: bookAuthor,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    read: false
+                };
+
+                batch.set(feedItemRef, feedItem);
+                batchCount++;
+
+                if (batchCount >= BATCH_LIMIT) {
+                    await batch.commit();
+                    batchCount = 0;
+                }
+            }
+
+            // Commit remaining operations
+            if (batchCount > 0) {
+                await batch.commit();
+            }
+
+            logger.log(`Fanned out finished book ${bookId} to ${followersSnapshot.size} followers`);
+
+        } catch (error) {
+            logger.error('Error fanning out finished book:', error);
+        }
+    }
+);
+
+/**
+ * Cleanup old feed items
+ * Runs daily at midnight UTC
+ * Removes items older than 30 days and limits to 100 items per user
+ */
+exports.cleanupFeeds = onSchedule("0 0 * * *", async (event) => {
+    const db = getFirestore();
+
+    try {
+        // Get all users
+        const usersSnapshot = await db.collection('users').get();
+
+        logger.log(`Cleaning up feeds for ${usersSnapshot.size} users`);
+
+        for (const userDoc of usersSnapshot.docs) {
+            const userId = userDoc.id;
+
+            // Get feed items older than 30 days
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+            const oldItemsSnapshot = await db
+                .collection('users')
+                .doc(userId)
+                .collection('feed')
+                .where('timestamp', '<', thirtyDaysAgo)
+                .get();
+
+            // Delete old items
+            const batch = db.batch();
+            let batchCount = 0;
+            const BATCH_LIMIT = 490;
+
+            for (const itemDoc of oldItemsSnapshot.docs) {
+                batch.delete(itemDoc.ref);
+                batchCount++;
+
+                if (batchCount >= BATCH_LIMIT) {
+                    await batch.commit();
+                    batchCount = 0;
+                }
+            }
+
+            if (batchCount > 0) {
+                await batch.commit();
+                batchCount = 0;
+            }
+
+            // Limit to 100 items (keep most recent)
+            const allItemsSnapshot = await db
+                .collection('users')
+                .doc(userId)
+                .collection('feed')
+                .orderBy('timestamp', 'desc')
+                .get();
+
+            if (allItemsSnapshot.size > 100) {
+                const itemsToDelete = allItemsSnapshot.docs.slice(100);
+
+                for (const itemDoc of itemsToDelete) {
+                    batch.delete(itemDoc.ref);
+                    batchCount++;
+
+                    if (batchCount >= BATCH_LIMIT) {
+                        await batch.commit();
+                        batchCount = 0;
+                    }
+                }
+
+                if (batchCount > 0) {
+                    await batch.commit();
+                }
+
+                logger.log(`Deleted ${itemsToDelete.length} excess feed items for user ${userId}`);
+            }
+        }
+
+        logger.log('Feed cleanup completed successfully');
+
+    } catch (error) {
+        logger.error('Error cleaning up feeds:', error);
     }
 });

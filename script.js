@@ -124,6 +124,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             userProfileContainer.append(userNameEl, uploadBtn, logoutBtn);
 
+            // Initialize feed link and unread count
+            initializeFeedLink(user);
+
         } else {
             // User is signed out
             const loginBtn = document.createElement('button');
@@ -144,6 +147,43 @@ document.addEventListener('DOMContentLoaded', async () => {
                     });
             });
             userProfileContainer.appendChild(loginBtn);
+        }
+    };
+
+    // Initialize feed link with unread count
+    const initializeFeedLink = async (user) => {
+        const feedLink = document.getElementById('feed-link');
+        const feedBadge = document.getElementById('feed-unread-badge');
+
+        if (!feedLink || !user) return;
+
+        // Show feed link
+        feedLink.style.display = 'flex';
+
+        // Subscribe to unread count updates
+        if (window.feedManager) {
+            try {
+                const unreadCount = await window.feedManager.getUnreadCount(user.uid);
+
+                if (unreadCount > 0) {
+                    feedBadge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+                    feedBadge.style.display = 'block';
+                } else {
+                    feedBadge.style.display = 'none';
+                }
+
+                // Subscribe to real-time updates
+                window.feedManager.subscribeToUnreadCount(user.uid, (count) => {
+                    if (count > 0) {
+                        feedBadge.textContent = count > 99 ? '99+' : count;
+                        feedBadge.style.display = 'block';
+                    } else {
+                        feedBadge.style.display = 'none';
+                    }
+                });
+            } catch (error) {
+                console.error('Error initializing feed link:', error);
+            }
         }
     };
 
