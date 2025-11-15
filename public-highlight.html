@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Default meta tags (will be updated dynamically) -->
+    <title>Highlight from Koby</title>
+    <meta name="description" content="A highlight shared on Koby">
+
+    <!-- Open Graph meta tags for social sharing -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Koby">
+    <meta property="og:title" content="Highlight from Koby" id="og-title">
+    <meta property="og:description" content="A highlight shared on Koby" id="og-description">
+    <meta property="og:url" content="" id="og-url">
+    <meta property="og:image" content="/assets/Isotype.svg" id="og-image">
+
+    <!-- Twitter Card meta tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Highlight from Koby" id="twitter-title">
+    <meta name="twitter:description" content="A highlight shared on Koby" id="twitter-description">
+    <meta name="twitter:image" content="/assets/Isotype.svg" id="twitter-image">
+
+    <link rel="icon" href="/assets/Isotype.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .highlight-card {
+            background: white;
+            border-radius: 20px;
+            max-width: 700px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .highlight-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 32px;
+            text-align: center;
+        }
+
+        .highlight-header h1 {
+            font-size: 24px;
+            margin: 0 0 8px 0;
+        }
+
+        .highlight-header p {
+            margin: 0;
+            opacity: 0.9;
+            font-size: 16px;
+        }
+
+        .highlight-body {
+            padding: 40px;
+        }
+
+        .highlight-text {
+            font-size: 20px;
+            line-height: 1.8;
+            color: #333;
+            font-style: italic;
+            position: relative;
+            padding-left: 24px;
+            border-left: 4px solid #667eea;
+            margin-bottom: 24px;
+        }
+
+        .highlight-annotation {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 24px;
+            border-left: 4px solid #4CAF50;
+        }
+
+        .highlight-annotation h3 {
+            margin: 0 0 12px 0;
+            color: #4CAF50;
+            font-size: 16px;
+        }
+
+        .highlight-annotation p {
+            margin: 0;
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .highlight-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 24px 40px;
+            border-top: 1px solid #eee;
+            background: #fafafa;
+        }
+
+        .meta-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .meta-info i {
+            color: #667eea;
+        }
+
+        .user-link {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+
+        .user-link:hover {
+            color: #764ba2;
+        }
+
+        .share-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .share-btn {
+            background: white;
+            border: 2px solid #667eea;
+            color: #667eea;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .share-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .cta-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 32px 40px;
+            text-align: center;
+        }
+
+        .cta-section h2 {
+            margin: 0 0 16px 0;
+            font-size: 24px;
+        }
+
+        .cta-section p {
+            margin: 0 0 24px 0;
+            opacity: 0.9;
+        }
+
+        .cta-btn {
+            background: white;
+            color: #667eea;
+            padding: 14px 32px;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s;
+        }
+
+        .cta-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .error-state {
+            text-align: center;
+            padding: 60px 40px;
+        }
+
+        .error-state i {
+            font-size: 64px;
+            color: #667eea;
+            margin-bottom: 24px;
+        }
+
+        .error-state h2 {
+            margin: 0 0 12px 0;
+            color: #333;
+        }
+
+        .error-state p {
+            color: #666;
+            margin-bottom: 24px;
+        }
+
+        .loading-state {
+            text-align: center;
+            padding: 60px 40px;
+        }
+
+        .loading-state i {
+            font-size: 48px;
+            color: #667eea;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .views-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 6px 12px;
+            border-radius: 16px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        @media (max-width: 768px) {
+            .highlight-body {
+                padding: 24px;
+            }
+
+            .highlight-text {
+                font-size: 18px;
+            }
+
+            .highlight-meta {
+                flex-direction: column;
+                gap: 16px;
+                align-items: flex-start;
+            }
+
+            .share-buttons {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .share-btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="highlight-card" id="highlight-card">
+        <!-- Loading state -->
+        <div class="loading-state" id="loading-state">
+            <i class="fas fa-spinner"></i>
+            <p>Loading highlight...</p>
+        </div>
+
+        <!-- Content will be inserted here -->
+        <div id="content" style="display: none;"></div>
+    </div>
+
+    <!-- Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD7WZLlbv9fjBu5iY6qhvVxIuDZ7-tWZLU",
+            authDomain: "koby-7cf5d.firebaseapp.com",
+            projectId: "koby-7cf5d",
+            storageBucket: "koby-7cf5d.appspot.com",
+            messagingSenderId: "431326563244",
+            appId: "1:431326563244:web:a33e4b5b5b5b5b5b5b5b5b"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Get shortId from URL path
+        const pathParts = window.location.pathname.split('/');
+        const shortId = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2];
+
+        console.log('[PublicHighlight] Loading highlight:', shortId);
+
+        async function loadHighlight() {
+            try {
+                // Fetch highlight data
+                const highlightDoc = await getDoc(doc(db, 'publicHighlights', shortId));
+
+                if (!highlightDoc.exists()) {
+                    showError('Highlight not found', 'This highlight may have been deleted or the link is invalid.');
+                    return;
+                }
+
+                const data = highlightDoc.data();
+
+                // Check if deleted
+                if (data.visibility === 'deleted') {
+                    showError('Highlight deleted', 'This highlight has been deleted by the owner.');
+                    return;
+                }
+
+                // Increment view count
+                incrementViews(shortId);
+
+                // Display highlight
+                displayHighlight(data);
+
+                // Update meta tags
+                updateMetaTags(data);
+
+            } catch (error) {
+                console.error('[PublicHighlight] Error loading highlight:', error);
+                showError('Error loading highlight', 'Please try again later.');
+            }
+        }
+
+        function displayHighlight(data) {
+            const content = `
+                <div class="highlight-header">
+                    <h1>${escapeHtml(data.bookTitle)}</h1>
+                    <p>by ${escapeHtml(data.bookAuthor)}</p>
+                </div>
+
+                <div class="highlight-body">
+                    <div class="highlight-text">
+                        ${escapeHtml(data.text)}
+                    </div>
+
+                    ${data.annotation ? `
+                        <div class="highlight-annotation">
+                            <h3><i class="fas fa-pen"></i> My Note</h3>
+                            <p>${escapeHtml(data.annotation)}</p>
+                        </div>
+                    ` : ''}
+                </div>
+
+                <div class="highlight-meta">
+                    <div class="meta-info">
+                        <i class="fas fa-user"></i>
+                        <span>Shared by <a href="/profile.html?userId=${data.userId}" class="user-link">reader</a></span>
+                        ${data.views ? `<span class="views-badge"><i class="fas fa-eye"></i> ${data.views} views</span>` : ''}
+                    </div>
+                    <div class="share-buttons">
+                        <button class="share-btn" onclick="copyLink()">
+                            <i class="fas fa-link"></i> Copy Link
+                        </button>
+                    </div>
+                </div>
+
+                <div class="cta-section">
+                    <h2>📚 Love reading highlights?</h2>
+                    <p>Track your own reading highlights from Kobo with Koby</p>
+                    <a href="/" class="cta-btn">Get Started Free</a>
+                </div>
+            `;
+
+            document.getElementById('content').innerHTML = content;
+            document.getElementById('content').style.display = 'block';
+            document.getElementById('loading-state').style.display = 'none';
+        }
+
+        function showError(title, message) {
+            const content = `
+                <div class="error-state">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <h2>${escapeHtml(title)}</h2>
+                    <p>${escapeHtml(message)}</p>
+                    <a href="/" class="cta-btn">Go to Koby Home</a>
+                </div>
+            `;
+
+            document.getElementById('content').innerHTML = content;
+            document.getElementById('content').style.display = 'block';
+            document.getElementById('loading-state').style.display = 'none';
+        }
+
+        function updateMetaTags(data) {
+            // Update page title
+            document.title = `"${data.text.substring(0, 60)}..." - ${data.bookTitle}`;
+
+            // Update description meta
+            const description = data.text.substring(0, 160) + (data.text.length > 160 ? '...' : '');
+            document.querySelector('meta[name="description"]').content = description;
+
+            // Update Open Graph
+            document.getElementById('og-title').content = `Highlight from "${data.bookTitle}"`;
+            document.getElementById('og-description').content = description;
+            document.getElementById('og-url').content = window.location.href;
+
+            // Update Twitter Card
+            document.getElementById('twitter-title').content = `Highlight from "${data.bookTitle}"`;
+            document.getElementById('twitter-description').content = description;
+        }
+
+        async function incrementViews(shortId) {
+            try {
+                const highlightRef = doc(db, 'publicHighlights', shortId);
+                const highlightDoc = await getDoc(highlightRef);
+
+                if (highlightDoc.exists()) {
+                    const currentViews = highlightDoc.data().views || 0;
+                    await setDoc(highlightRef, {
+                        views: currentViews + 1,
+                        lastViewedAt: new Date().toISOString()
+                    }, { merge: true });
+                }
+            } catch (error) {
+                console.error('[PublicHighlight] Error incrementing views:', error);
+            }
+        }
+
+        window.copyLink = async function() {
+            try {
+                await navigator.clipboard.writeText(window.location.href);
+                const btn = event.target.closest('.share-btn');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                }, 2000);
+            } catch (error) {
+                alert('Failed to copy link. Please copy manually from the address bar.');
+            }
+        };
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Load highlight on page load
+        loadHighlight();
+    </script>
+</body>
+</html>

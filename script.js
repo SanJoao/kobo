@@ -1371,31 +1371,77 @@ async function toggleLike(highlightId, authorId) {
     };
 
     window.shareQuoteText = async function(highlight) {
-        const shareUrl = highlight.user_id
-            ? new URL(`/user/${highlight.user_id}`, window.location.origin)
-            : new URL(window.location.origin);
-
-        if (highlight.highlight_id) {
-            shareUrl.searchParams.set('highlight', highlight.highlight_id);
-        }
-
-        const shareData = {
-            title: `Highlight from ${highlight.book_title || 'a book'}`,
-            text: `"${highlight.text}"`,
-            url: shareUrl.href,
-        };
-
         try {
+            // Check if public link generator is available
+            if (!window.publicLinkGenerator) {
+                console.warn('Public link generator not loaded, using fallback URL');
+                const shareUrl = highlight.user_id
+                    ? new URL(`/user/${highlight.user_id}`, window.location.origin)
+                    : new URL(window.location.origin);
+
+                if (highlight.highlight_id) {
+                    shareUrl.searchParams.set('highlight', highlight.highlight_id);
+                }
+
+                const shareData = {
+                    title: `Highlight from ${highlight.book_title || 'a book'}`,
+                    text: `"${highlight.text}"`,
+                    url: shareUrl.href,
+                };
+
+                if (navigator.share) {
+                    await navigator.share(shareData);
+                } else {
+                    await navigator.clipboard.writeText(`"${highlight.text}"\n\n${shareUrl.href}`);
+                    alert('Link copied to clipboard!');
+                }
+                document.getElementById('share-options-modal').remove();
+                return;
+            }
+
+            // Prepare highlight data for public link
+            const highlightData = {
+                id: highlight.highlight_id || highlight.id,
+                Text: highlight.text || highlight.Text,
+                Annotation: highlight.annotation || highlight.Annotation || null,
+                date_created: highlight.date_created,
+                bookTitle: highlight.book_title || '',
+                bookAuthor: highlight.author || ''
+            };
+
+            // Get book data if available
+            const bookData = allBooks.find(b => b.book_id === highlight.book_id) || {
+                Title: highlight.book_title || 'Unknown Book',
+                Attribution: highlight.author || 'Unknown Author'
+            };
+
+            // Create public link
+            const publicUrl = await window.publicLinkGenerator.createPublicLink(
+                highlightData,
+                highlight.user_id || currentUserId,
+                bookData
+            );
+
+            const shareData = {
+                title: `Highlight from ${bookData.Title}`,
+                text: `"${highlightData.Text.substring(0, 200)}${highlightData.Text.length > 200 ? '...' : ''}"`,
+                url: publicUrl,
+            };
+
+            // Try Web Share API first
             if (navigator.share) {
                 await navigator.share(shareData);
             } else {
-                await navigator.clipboard.writeText(`"${highlight.text}"\n\n${shareUrl.href}`);
-                alert('Link copied to clipboard!');
+                // Fallback to clipboard
+                await navigator.clipboard.writeText(publicUrl);
+                alert('Public link copied to clipboard!');
             }
+
             document.getElementById('share-options-modal').remove();
         } catch (error) {
             if (error.name !== 'AbortError') {
                 console.error('Error sharing:', error);
+                alert('Failed to create public link. Please try again.');
             }
         }
     };
