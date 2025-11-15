@@ -765,3 +765,99 @@ body.dark-mode #kofi-btn {
 body.dark-mode #kofi-btn:hover {
     background-color: #0056b3;
 }
+
+/* Follow System Styles */
+.profile-connections {
+    display: flex;
+    gap: 24px;
+    margin: 16px 0;
+}
+
+.connection-stat {
+    text-decoration: none;
+    color: #666;
+    transition: color 0.3s;
+}
+
+.connection-stat:hover {
+    color: #4CAF50;
+}
+
+.connection-stat strong {
+    font-size: 18px;
+    color: #333;
+    margin-right: 4px;
+}
+
+.connection-stat span {
+    font-size: 14px;
+}
+
+.profile-follow-button, .follow-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 24px;
+    border: 2px solid #4CAF50;
+    background: white;
+    color: #4CAF50;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-size: 14px;
+}
+
+.profile-follow-button:hover, .follow-button:hover {
+    background: #4CAF50;
+    color: white;
+}
+
+.profile-follow-button.following, .follow-button.following {
+    background: #4CAF50;
+    color: white;
+}
+
+.profile-follow-button.following:hover, .follow-button.following:hover {
+    background: #f44336;
+    border-color: #f44336;
+}
+
+.profile-follow-button:disabled, .follow-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.follow-icon {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+body.dark-mode .profile-connections {
+    color: #ccc;
+}
+
+body.dark-mode .connection-stat {
+    color: #aaa;
+}
+
+body.dark-mode .connection-stat:hover {
+    color: #4CAF50;
+}
+
+body.dark-mode .connection-stat strong {
+    color: #eee;
+}
+
+body.dark-mode .profile-follow-button,
+body.dark-mode .follow-button {
+    background: #1e1e1e;
+    border-color: #4CAF50;
+    color: #4CAF50;
+}
+
+body.dark-mode .profile-follow-button.following,
+body.dark-mode .follow-button.following {
+    background: #4CAF50;
+    color: white;
+}

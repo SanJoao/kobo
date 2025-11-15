@@ -1,4 +1,5 @@
 const { onObjectFinalized } = require("firebase-functions/v2/storage");
+const { onCall } = require("firebase-functions/v2/https");
 const { getStorage } = require("firebase-admin/storage");
 const { getFirestore } = require("firebase-admin/firestore");
 const admin = require("firebase-admin");
@@ -201,5 +202,179 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
             await sqliteDb.close();
         }
         fs.unlinkSync(tempFilePath);
+    }
+});
+
+/**
+ * Follow a user
+ * Creates follower/following relationships and updates counts
+ */
+exports.followUser = onCall(async (request) => {
+    const { auth, data } = request;
+
+    // Check authentication
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const followerId = auth.uid;
+    const followingId = data.userId;
+
+    if (!followingId) {
+        throw new Error('userId is required');
+    }
+
+    if (followerId === followingId) {
+        throw new Error('Cannot follow yourself');
+    }
+
+    const db = getFirestore();
+
+    try {
+        // Check if already following
+        const followerDoc = await db
+            .collection('users')
+            .doc(followingId)
+            .collection('followers')
+            .doc(followerId)
+            .get();
+
+        if (followerDoc.exists) {
+            throw new Error('Already following this user');
+        }
+
+        // Use batch for atomic operations
+        const batch = db.batch();
+
+        // Add to following's followers subcollection
+        const followerRef = db
+            .collection('users')
+            .doc(followingId)
+            .collection('followers')
+            .doc(followerId);
+
+        batch.set(followerRef, {
+            userId: followerId,
+            followedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Add to follower's following subcollection
+        const followingRef = db
+            .collection('users')
+            .doc(followerId)
+            .collection('following')
+            .doc(followingId);
+
+        batch.set(followingRef, {
+            userId: followingId,
+            followedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Increment follower count on user being followed
+        const followingUserRef = db.collection('users').doc(followingId);
+        batch.set(followingUserRef, {
+            followerCount: admin.firestore.FieldValue.increment(1)
+        }, { merge: true });
+
+        // Increment following count on follower
+        const followerUserRef = db.collection('users').doc(followerId);
+        batch.set(followerUserRef, {
+            followingCount: admin.firestore.FieldValue.increment(1)
+        }, { merge: true });
+
+        await batch.commit();
+
+        logger.log(`User ${followerId} followed ${followingId}`);
+
+        return {
+            success: true,
+            message: 'Successfully followed user'
+        };
+
+    } catch (error) {
+        logger.error('Error following user:', error);
+        throw new Error(error.message || 'Failed to follow user');
+    }
+});
+
+/**
+ * Unfollow a user
+ * Removes follower/following relationships and updates counts
+ */
+exports.unfollowUser = onCall(async (request) => {
+    const { auth, data } = request;
+
+    // Check authentication
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const followerId = auth.uid;
+    const followingId = data.userId;
+
+    if (!followingId) {
+        throw new Error('userId is required');
+    }
+
+    const db = getFirestore();
+
+    try {
+        // Check if actually following
+        const followerDoc = await db
+            .collection('users')
+            .doc(followingId)
+            .collection('followers')
+            .doc(followerId)
+            .get();
+
+        if (!followerDoc.exists) {
+            throw new Error('Not following this user');
+        }
+
+        // Use batch for atomic operations
+        const batch = db.batch();
+
+        // Remove from following's followers subcollection
+        const followerRef = db
+            .collection('users')
+            .doc(followingId)
+            .collection('followers')
+            .doc(followerId);
+
+        batch.delete(followerRef);
+
+        // Remove from follower's following subcollection
+        const followingRef = db
+            .collection('users')
+            .doc(followerId)
+            .collection('following')
+            .doc(followingId);
+
+        batch.delete(followingRef);
+
+        // Decrement follower count on user being unfollowed
+        const followingUserRef = db.collection('users').doc(followingId);
+        batch.set(followingUserRef, {
+            followerCount: admin.firestore.FieldValue.increment(-1)
+        }, { merge: true });
+
+        // Decrement following count on unfollower
+        const followerUserRef = db.collection('users').doc(followerId);
+        batch.set(followerUserRef, {
+            followingCount: admin.firestore.FieldValue.increment(-1)
+        }, { merge: true });
+
+        await batch.commit();
+
+        logger.log(`User ${followerId} unfollowed ${followingId}`);
+
+        return {
+            success: true,
+            message: 'Successfully unfollowed user'
+        };
+
+    } catch (error) {
+        logger.error('Error unfollowing user:', error);
+        throw new Error(error.message || 'Failed to unfollow user');
     }
 });
