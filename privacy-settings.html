@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Settings - Koby</title>
+    <link rel="icon" href="/assets/Isotype.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .settings-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .settings-header {
+            margin-bottom: 40px;
+        }
+
+        .settings-header h1 {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .settings-header p {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .settings-section {
+            background: white;
+            border-radius: 12px;
+            padding: 32px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .settings-section h2 {
+            font-size: 20px;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .settings-section .section-description {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .setting-item:last-child {
+            border-bottom: none;
+        }
+
+        .setting-info {
+            flex: 1;
+        }
+
+        .setting-info h3 {
+            font-size: 16px;
+            margin-bottom: 4px;
+            color: #333;
+        }
+
+        .setting-info p {
+            font-size: 14px;
+            color: #666;
+            margin: 0;
+        }
+
+        .setting-control {
+            margin-left: 24px;
+        }
+
+        .setting-control select {
+            padding: 10px 16px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
+            min-width: 180px;
+        }
+
+        .setting-control select:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 52px;
+            height: 28px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.3s;
+            border-radius: 28px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .toggle-slider {
+            background-color: #4CAF50;
+        }
+
+        input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+
+        .danger-zone {
+            border: 2px solid #f44336;
+            background: #fff5f5;
+        }
+
+        .danger-zone h2 {
+            color: #f44336;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-danger:hover {
+            background: #d32f2f;
+        }
+
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary:hover {
+            background: #45a049;
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #333;
+            border: 1px solid #ddd;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-secondary:hover {
+            border-color: #4CAF50;
+            color: #4CAF50;
+        }
+
+        .save-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            padding: 16px 24px;
+            box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+            display: none;
+            justify-content: center;
+            gap: 12px;
+            z-index: 1000;
+        }
+
+        .save-bar.visible {
+            display: flex;
+        }
+
+        .privacy-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .privacy-badge.public {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .privacy-badge.private {
+            background: #fff3e0;
+            color: #ef6c00;
+        }
+
+        .privacy-badge.friends {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+
+        @media (max-width: 768px) {
+            .setting-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .setting-control {
+                margin-left: 0;
+                margin-top: 12px;
+                width: 100%;
+            }
+
+            .setting-control select {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="settings-container">
+        <div class="settings-header">
+            <h1>Privacy Settings</h1>
+            <p>Control who can see your reading activity and how your data is used</p>
+        </div>
+
+        <!-- Profile Visibility -->
+        <div class="settings-section">
+            <h2>Profile Visibility</h2>
+            <p class="section-description">Control who can view your profile and reading statistics</p>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <h3>Profile Visibility</h3>
+                    <p>Choose who can view your profile page</p>
+                </div>
+                <div class="setting-control">
+                    <select id="profile-visibility">
+                        <option value="public">Public - Anyone</option>
+                        <option value="friends">Friends Only</option>
+                        <option value="private">Private - Only Me</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <h3>Reading Statistics</h3>
+                    <p>Who can see your book count, reading time, etc.</p>
+                </div>
+                <div class="setting-control">
+                    <select id="stats-visibility">
+                        <option value="public">Public - Anyone</option>
+                        <option value="friends">Friends Only</option>
+                        <option value="private">Private - Only Me</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <h3>Book List Visibility</h3>
+                    <p>Who can see the list of books you've read</p>
+                </div>
+                <div class="setting-control">
+                    <select id="books-visibility">
+                        <option value="public">Public - Anyone</option>
+                        <option value="friends">Friends Only</option>
+                        <option value="private">Private - Only Me</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Highlight Visibility -->
+        <div class="settings-section">
+            <h2>Highlight Visibility</h2>
+            <p class="section-description">Control the default visibility for your highlights and annotations</p>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <h3>Default Highlight Visibility</h3>
+                    <p>New highlights will use this visibility setting by default</p>
+                </div>
+                <div class="setting-control">
+                    <select id="highlight-visibility-default">
+                        <option value="public">Public - Anyone can see</option>
+                        <option value="friends">Friends Only</option>
+                        <option value="private">Private - Only Me</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <h3>Allow Per-Highlight Controls</h3>
+                    <p>Let me change visibility for individual highlights</p>
+                </div>
+                <div class="setting-control">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="per-highlight-controls" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <h3>Show in Public Feed</h3>
+                    <p>Show my public highlights in the trending/public feed</p>
+                </div>
+                <div class="setting-control">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="show-in-feed" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Social Settings -->
+        <div class="settings-section">
+            <h2>Social Interactions</h2>
+            <p class="section-description">Control how others can interact with you</p>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <h3>Who Can Follow You</h3>
+                    <p>Control who can follow your reading activity</p>
+                </div>
+                <div class="setting-control">
+                    <select id="follow-permission">
+                        <option value="anyone">Anyone</option>
+                        <option value="approval">Requires Approval</option>
+                        <option value="none">No One</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <h3>Show Follower Count</h3>
+                    <p>Display the number of people following you</p>
+                </div>
+                <div class="setting-control">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="show-follower-count" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <h3>Show Following Count</h3>
+                    <p>Display the number of people you're following</p>
+                </div>
+                <div class="setting-control">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="show-following-count" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data & Privacy -->
+        <div class="settings-section">
+            <h2>Data & Privacy</h2>
+            <p class="section-description">Manage your data and privacy preferences</p>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <h3>Analytics</h3>
+                    <p>Help us improve Koby by sharing anonymous usage data</p>
+                </div>
+                <div class="setting-control">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="allow-analytics" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <h3>Download Your Data</h3>
+                    <p>Export all your highlights, books, and vocabulary words</p>
+                </div>
+                <div class="setting-control">
+                    <button class="btn-secondary" onclick="exportUserData()">
+                        <i class="fas fa-download"></i> Export Data
+                    </button>
+                </div>
+            </div>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <h3>Data Retention</h3>
+                    <p>Automatically delete old highlights after:</p>
+                </div>
+                <div class="setting-control">
+                    <select id="data-retention">
+                        <option value="never">Never Delete</option>
+                        <option value="1year">1 Year</option>
+                        <option value="2years">2 Years</option>
+                        <option value="5years">5 Years</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="settings-section danger-zone">
+            <h2>Danger Zone</h2>
+            <p class="section-description">Irreversible actions - proceed with caution</p>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <h3>Delete All Highlights</h3>
+                    <p>Permanently delete all your highlights and annotations</p>
+                </div>
+                <div class="setting-control">
+                    <button class="btn-danger" onclick="deleteAllHighlights()">
+                        Delete All Highlights
+                    </button>
+                </div>
+            </div>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <h3>Delete Account</h3>
+                    <p>Permanently delete your account and all associated data</p>
+                </div>
+                <div class="setting-control">
+                    <button class="btn-danger" onclick="deleteAccount()">
+                        Delete Account
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save Bar -->
+    <div class="save-bar" id="save-bar">
+        <button class="btn-secondary" onclick="discardChanges()">Discard</button>
+        <button class="btn-primary" onclick="saveSettings()">
+            <i class="fas fa-check"></i> Save Changes
+        </button>
+    </div>
+
+    <!-- External Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script type="module" src="/data-exporter.js"></script>
+
+    <!-- Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD7WZLlbv9fjBu5iY6qhvVxIuDZ7-tWZLU",
+            authDomain: "koby-7cf5d.firebaseapp.com",
+            projectId: "koby-7cf5d",
+            storageBucket: "koby-7cf5d.appspot.com",
+            messagingSenderId: "431326563244",
+            appId: "1:431326563244:web:a33e4b5b5b5b5b5b5b5b5b"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentUser = null;
+        let originalSettings = {};
+        let hasUnsavedChanges = false;
+
+        // Check authentication
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                loadPrivacySettings();
+            } else {
+                window.location.href = '/login.html';
+            }
+        });
+
+        // Load privacy settings
+        async function loadPrivacySettings() {
+            try {
+                const settingsDoc = await getDoc(doc(db, 'users', currentUser.uid, 'settings', 'privacy'));
+
+                if (settingsDoc.exists()) {
+                    const settings = settingsDoc.data();
+                    originalSettings = { ...settings };
+
+                    // Apply settings to UI
+                    document.getElementById('profile-visibility').value = settings.profileVisibility || 'public';
+                    document.getElementById('stats-visibility').value = settings.statsVisibility || 'public';
+                    document.getElementById('books-visibility').value = settings.booksVisibility || 'public';
+                    document.getElementById('highlight-visibility-default').value = settings.highlightVisibilityDefault || 'public';
+                    document.getElementById('per-highlight-controls').checked = settings.perHighlightControls !== false;
+                    document.getElementById('show-in-feed').checked = settings.showInFeed !== false;
+                    document.getElementById('follow-permission').value = settings.followPermission || 'anyone';
+                    document.getElementById('show-follower-count').checked = settings.showFollowerCount !== false;
+                    document.getElementById('show-following-count').checked = settings.showFollowingCount !== false;
+                    document.getElementById('allow-analytics').checked = settings.allowAnalytics !== false;
+                    document.getElementById('data-retention').value = settings.dataRetention || 'never';
+                } else {
+                    // Set defaults
+                    originalSettings = getDefaultSettings();
+                }
+
+                // Add change listeners
+                addChangeListeners();
+            } catch (error) {
+                console.error('Error loading privacy settings:', error);
+                alert('Error loading privacy settings. Please try again.');
+            }
+        }
+
+        function getDefaultSettings() {
+            return {
+                profileVisibility: 'public',
+                statsVisibility: 'public',
+                booksVisibility: 'public',
+                highlightVisibilityDefault: 'public',
+                perHighlightControls: true,
+                showInFeed: true,
+                followPermission: 'anyone',
+                showFollowerCount: true,
+                showFollowingCount: true,
+                allowAnalytics: true,
+                dataRetention: 'never'
+            };
+        }
+
+        function addChangeListeners() {
+            const inputs = document.querySelectorAll('select, input[type="checkbox"]');
+            inputs.forEach(input => {
+                input.addEventListener('change', () => {
+                    hasUnsavedChanges = true;
+                    document.getElementById('save-bar').classList.add('visible');
+                });
+            });
+        }
+
+        function getCurrentSettings() {
+            return {
+                profileVisibility: document.getElementById('profile-visibility').value,
+                statsVisibility: document.getElementById('stats-visibility').value,
+                booksVisibility: document.getElementById('books-visibility').value,
+                highlightVisibilityDefault: document.getElementById('highlight-visibility-default').value,
+                perHighlightControls: document.getElementById('per-highlight-controls').checked,
+                showInFeed: document.getElementById('show-in-feed').checked,
+                followPermission: document.getElementById('follow-permission').value,
+                showFollowerCount: document.getElementById('show-follower-count').checked,
+                showFollowingCount: document.getElementById('show-following-count').checked,
+                allowAnalytics: document.getElementById('allow-analytics').checked,
+                dataRetention: document.getElementById('data-retention').value,
+                updatedAt: new Date().toISOString()
+            };
+        }
+
+        window.saveSettings = async function() {
+            try {
+                const settings = getCurrentSettings();
+
+                await setDoc(doc(db, 'users', currentUser.uid, 'settings', 'privacy'), settings);
+
+                originalSettings = { ...settings };
+                hasUnsavedChanges = false;
+                document.getElementById('save-bar').classList.remove('visible');
+
+                alert('Privacy settings saved successfully!');
+            } catch (error) {
+                console.error('Error saving settings:', error);
+                alert('Error saving settings. Please try again.');
+            }
+        };
+
+        window.discardChanges = function() {
+            if (confirm('Discard all unsaved changes?')) {
+                // Reload settings from originalSettings
+                document.getElementById('profile-visibility').value = originalSettings.profileVisibility || 'public';
+                document.getElementById('stats-visibility').value = originalSettings.statsVisibility || 'public';
+                document.getElementById('books-visibility').value = originalSettings.booksVisibility || 'public';
+                document.getElementById('highlight-visibility-default').value = originalSettings.highlightVisibilityDefault || 'public';
+                document.getElementById('per-highlight-controls').checked = originalSettings.perHighlightControls !== false;
+                document.getElementById('show-in-feed').checked = originalSettings.showInFeed !== false;
+                document.getElementById('follow-permission').value = originalSettings.followPermission || 'anyone';
+                document.getElementById('show-follower-count').checked = originalSettings.showFollowerCount !== false;
+                document.getElementById('show-following-count').checked = originalSettings.showFollowingCount !== false;
+                document.getElementById('allow-analytics').checked = originalSettings.allowAnalytics !== false;
+                document.getElementById('data-retention').value = originalSettings.dataRetention || 'never';
+
+                hasUnsavedChanges = false;
+                document.getElementById('save-bar').classList.remove('visible');
+            }
+        };
+
+        window.exportUserData = async function() {
+            if (confirm('This will export all your data as JSON. Continue?')) {
+                try {
+                    // This will be implemented by the data-exporter.js module
+                    if (window.dataExporter) {
+                        await window.dataExporter.exportAllData(currentUser.uid);
+                    } else {
+                        alert('Data export feature is not loaded. Please refresh the page and try again.');
+                    }
+                } catch (error) {
+                    console.error('Error exporting data:', error);
+                    alert('Error exporting data. Please try again.');
+                }
+            }
+        };
+
+        window.deleteAllHighlights = async function() {
+            const confirmation = prompt('This will permanently delete ALL your highlights. Type "DELETE ALL HIGHLIGHTS" to confirm:');
+
+            if (confirmation === 'DELETE ALL HIGHLIGHTS') {
+                try {
+                    // Import deleteAllHighlights from a Cloud Function
+                    const response = await fetch('YOUR_CLOUD_FUNCTION_URL/deleteAllHighlights', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + await currentUser.getIdToken()
+                        }
+                    });
+
+                    if (response.ok) {
+                        alert('All highlights have been deleted.');
+                        window.location.reload();
+                    } else {
+                        throw new Error('Failed to delete highlights');
+                    }
+                } catch (error) {
+                    console.error('Error deleting highlights:', error);
+                    alert('Error deleting highlights. Please try again.');
+                }
+            }
+        };
+
+        window.deleteAccount = async function() {
+            const confirmation = prompt('This will PERMANENTLY DELETE your account and ALL data. Type "DELETE MY ACCOUNT" to confirm:');
+
+            if (confirmation === 'DELETE MY ACCOUNT') {
+                try {
+                    // Call Cloud Function to delete account
+                    const response = await fetch('YOUR_CLOUD_FUNCTION_URL/deleteAccount', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + await currentUser.getIdToken()
+                        }
+                    });
+
+                    if (response.ok) {
+                        alert('Your account has been deleted.');
+                        await auth.signOut();
+                        window.location.href = '/';
+                    } else {
+                        throw new Error('Failed to delete account');
+                    }
+                } catch (error) {
+                    console.error('Error deleting account:', error);
+                    alert('Error deleting account. Please try again.');
+                }
+            }
+        };
+
+        // Warn on page unload if unsaved changes
+        window.addEventListener('beforeunload', (e) => {
+            if (hasUnsavedChanges) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+    </script>
+</body>
+</html>

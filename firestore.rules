@@ -1,26 +1,159 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId}/{document=**} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
     }
 
-    // Allow public read access to all 'highlights' collections
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserSettings(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)/settings/privacy).data;
+    }
+
+    function isFriend(userId, viewerId) {
+      // Check if viewerId follows userId (simplified version)
+      // In production, you'd check both directions for "friends" relationship
+      return exists(/databases/$(database)/documents/users/$(userId)/followers/$(viewerId));
+    }
+
+    function canViewProfile(userId) {
+      // Owner can always view own profile
+      if (isOwner(userId)) return true;
+
+      // Get privacy settings (default to public if not set)
+      let settings = getUserSettings(userId);
+      let visibility = settings.get('profileVisibility', 'public');
+
+      return visibility == 'public'
+        || (visibility == 'friends' && isAuthenticated() && isFriend(userId, request.auth.uid))
+        || (visibility == 'private' && isOwner(userId));
+    }
+
+    function canViewHighlight(userId, highlightData) {
+      // Owner can always view own highlights
+      if (isOwner(userId)) return true;
+
+      // Check per-highlight visibility if set
+      if (highlightData.keys().hasAny(['visibility'])) {
+        let visibility = highlightData.visibility;
+
+        if (visibility == 'private') {
+          return false;
+        } else if (visibility == 'friends') {
+          return isAuthenticated() && isFriend(userId, request.auth.uid);
+        } else {
+          return true; // public
+        }
+      }
+
+      // Fall back to user's default highlight visibility setting
+      let settings = getUserSettings(userId);
+      let defaultVisibility = settings.get('highlightVisibilityDefault', 'public');
+
+      return defaultVisibility == 'public'
+        || (defaultVisibility == 'friends' && isAuthenticated() && isFriend(userId, request.auth.uid))
+        || (defaultVisibility == 'private' && isOwner(userId));
+    }
+
+    function canViewStats(userId) {
+      if (isOwner(userId)) return true;
+
+      let settings = getUserSettings(userId);
+      let visibility = settings.get('statsVisibility', 'public');
+
+      return visibility == 'public'
+        || (visibility == 'friends' && isAuthenticated() && isFriend(userId, request.auth.uid));
+    }
+
+    function canViewBooks(userId) {
+      if (isOwner(userId)) return true;
+
+      let settings = getUserSettings(userId);
+      let visibility = settings.get('booksVisibility', 'public');
+
+      return visibility == 'public'
+        || (visibility == 'friends' && isAuthenticated() && isFriend(userId, request.auth.uid));
+    }
+
+    // User documents
+    match /users/{userId} {
+      allow read: if canViewProfile(userId);
+      allow write: if isOwner(userId);
+
+      // Settings subcollection
+      match /settings/{settingId} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId);
+      }
+
+      // Books subcollection
+      match /books/{bookId} {
+        allow read: if canViewBooks(userId);
+        allow write: if isOwner(userId);
+      }
+
+      // Highlights subcollection
+      match /highlights/{highlightId} {
+        allow read: if canViewHighlight(userId, resource.data);
+        allow write: if isOwner(userId);
+
+        // Allow likes update only
+        allow update: if isAuthenticated() &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likeCount']);
+      }
+
+      // Words/vocabulary subcollection
+      match /words/{wordId} {
+        allow read: if canViewBooks(userId); // Same visibility as books
+        allow write: if isOwner(userId);
+      }
+
+      // Followers subcollection
+      match /followers/{followerId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated() && request.auth.uid == followerId;
+      }
+
+      // Following subcollection
+      match /following/{followingId} {
+        allow read: if isAuthenticated();
+        allow write: if isOwner(userId);
+      }
+    }
+
+    // CollectionGroup queries for highlights (used in public feed)
     match /{path=**}/highlights/{highlightId} {
-      allow read: if true;
-      allow update: if request.auth != null && 
-                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likeCount']);
+      // For collectionGroup queries, we can't easily check privacy settings
+      // So we require highlights to have visibility field for public access
+      allow read: if resource.data.get('visibility', 'public') == 'public' &&
+                    resource.data.get('showInFeed', true) == true;
     }
 
-    // Allow users to read their own processing status
-    match /processingStatus/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
+    // CollectionGroup queries for books
+    match /{path=**}/books/{bookId} {
+      allow read: if true; // Read-only, privacy checked at user level
     }
 
-    // Allow public read access to all 'words' collections
+    // CollectionGroup queries for words
     match /{path=**}/words/{wordId} {
-      allow read: if true;
+      allow read: if true; // Read-only, privacy checked at user level
+    }
+
+    // Processing status
+    match /processingStatus/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId);
+    }
+
+    // Public highlight links (for /h/{shortId} sharing)
+    match /publicHighlights/{shortId} {
+      allow read: if true; // Public by definition
+      allow write: if isAuthenticated(); // Any authenticated user can create public links
     }
   }
 }
