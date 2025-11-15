@@ -342,14 +342,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const userBooksQuery = query(collection(db, "users", userId, "books"));
             const userHighlightsQuery = query(collection(db, "users", userId, "highlights"));
+            const userWordsQuery = query(collection(db, "users", userId, "words"));
 
-            const [booksSnapshot, highlightsSnapshot] = await Promise.all([
+            const [booksSnapshot, highlightsSnapshot, wordsSnapshot] = await Promise.all([
                 getDocs(userBooksQuery),
-                getDocs(userHighlightsQuery)
+                getDocs(userHighlightsQuery),
+                getDocs(userWordsQuery)
             ]);
 
             const books = booksSnapshot.docs.map(doc => ({ doc_id: doc.id, ...doc.data() }));
             const highlights = highlightsSnapshot.docs.map(doc => ({ highlight_id: doc.id, user_id: userId, ...doc.data() }));
+            const words = wordsSnapshot.docs.map(doc => ({ word_id: doc.id, ...doc.data() }));
 
             const booksMap = new Map(books.map(book => [book.doc_id, book]));
 
@@ -369,6 +372,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 total_highlights_uploaded: allHighlights.length,
                 total_books_uploaded: allBooks.length
             });
+
+            // Initialize export manager with user data
+            if (window.exportManager) {
+                window.exportManager.init(books, allHighlights, words);
+            }
 
             populateBookFilter(allBooks);
             createCharts(allHighlights, allBooks);

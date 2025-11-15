@@ -51,6 +51,18 @@ function renderProfile(data, isOwner) {
                 ${data.fable ? `<a href="${data.fable}" target="_blank"><i class="fas fa-feather-alt"></i></a>` : ''}
             </div>
             ${isOwner ? '<button id="edit-profile-btn">Edit Profile</button>' : ''}
+            ${isOwner ? `
+            <div class="export-buttons-container">
+                <button class="export-button" onclick="window.exportManager.showPKMExportModal()">
+                    <span class="export-button-icon">📚</span>
+                    Export to PKM
+                </button>
+                <button class="export-button secondary" onclick="window.exportManager.showFlashcardExportModal()">
+                    <span class="export-button-icon">🎴</span>
+                    Export Flashcards
+                </button>
+            </div>
+            ` : ''}
         </div>
         <div id="liked-highlights" class="tab-content">
             <h3>Liked Highlights</h3>
