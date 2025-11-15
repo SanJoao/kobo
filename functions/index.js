@@ -1200,3 +1200,536 @@ exports.markAllNotificationsRead = onCall(async (request) => {
         throw new Error(error.message || 'Failed to mark all notifications as read');
     }
 });
+
+// ============================================================================
+// READING GROUPS FUNCTIONS
+// ============================================================================
+
+/**
+ * Create a new reading group
+ */
+exports.createGroup = onCall(async (request) => {
+    const { auth, data } = request;
+
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const { name, description, bookId, bookTitle, isPrivate, tags } = data;
+
+    // Validation
+    if (!name || name.trim().length === 0) {
+        throw new Error('Group name is required');
+    }
+
+    if (name.length > 100) {
+        throw new Error('Group name cannot exceed 100 characters');
+    }
+
+    if (description && description.length > 1000) {
+        throw new Error('Description cannot exceed 1000 characters');
+    }
+
+    const db = getFirestore();
+
+    try {
+        // Get user info
+        const userDoc = await db.collection('users').doc(userId).get();
+        const userData = userDoc.data();
+
+        // Create group document
+        const groupData = {
+            name: name.trim(),
+            description: description?.trim() || '',
+            bookId: bookId || null,
+            bookTitle: bookTitle || null,
+            isPrivate: isPrivate || false,
+            tags: tags || [],
+            createdBy: userId,
+            createdByName: userData.displayName || 'Anonymous',
+            createdByPhotoURL: userData.photoURL || null,
+            memberCount: 1,
+            postCount: 0,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        const groupRef = await db.collection('groups').add(groupData);
+
+        // Add creator as admin member
+        await db.collection('groups').doc(groupRef.id).collection('members').doc(userId).set({
+            userId,
+            userName: userData.displayName || 'Anonymous',
+            userPhotoURL: userData.photoURL || null,
+            role: 'admin',
+            joinedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Add group to user's groups
+        await db.collection('users').doc(userId).collection('groups').doc(groupRef.id).set({
+            groupId: groupRef.id,
+            name: groupData.name,
+            role: 'admin',
+            joinedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        logger.log(`Group created: ${groupRef.id} by user ${userId}`);
+
+        return {
+            success: true,
+            groupId: groupRef.id,
+            message: 'Group created successfully'
+        };
+
+    } catch (error) {
+        logger.error('Error creating group:', error);
+        throw new Error(error.message || 'Failed to create group');
+    }
+});
+
+/**
+ * Join a reading group
+ */
+exports.joinGroup = onCall(async (request) => {
+    const { auth, data } = request;
+
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const { groupId } = data;
+
+    if (!groupId) {
+        throw new Error('Group ID is required');
+    }
+
+    const db = getFirestore();
+
+    try {
+        const groupRef = db.collection('groups').doc(groupId);
+        const groupDoc = await groupRef.get();
+
+        if (!groupDoc.exists) {
+            throw new Error('Group not found');
+        }
+
+        const groupData = groupDoc.data();
+
+        // Check if already a member
+        const memberDoc = await groupRef.collection('members').doc(userId).get();
+        if (memberDoc.exists) {
+            return {
+                success: false,
+                message: 'Already a member of this group'
+            };
+        }
+
+        // Get user info
+        const userDoc = await db.collection('users').doc(userId).get();
+        const userData = userDoc.data();
+
+        // Add as member
+        await groupRef.collection('members').doc(userId).set({
+            userId,
+            userName: userData.displayName || 'Anonymous',
+            userPhotoURL: userData.photoURL || null,
+            role: 'member',
+            joinedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Increment member count
+        await groupRef.update({
+            memberCount: admin.firestore.FieldValue.increment(1),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Add group to user's groups
+        await db.collection('users').doc(userId).collection('groups').doc(groupId).set({
+            groupId,
+            name: groupData.name,
+            role: 'member',
+            joinedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        logger.log(`User ${userId} joined group ${groupId}`);
+
+        return {
+            success: true,
+            message: 'Successfully joined group'
+        };
+
+    } catch (error) {
+        logger.error('Error joining group:', error);
+        throw new Error(error.message || 'Failed to join group');
+    }
+});
+
+/**
+ * Leave a reading group
+ */
+exports.leaveGroup = onCall(async (request) => {
+    const { auth, data } = request;
+
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const { groupId } = data;
+
+    if (!groupId) {
+        throw new Error('Group ID is required');
+    }
+
+    const db = getFirestore();
+
+    try {
+        const groupRef = db.collection('groups').doc(groupId);
+        const groupDoc = await groupRef.get();
+
+        if (!groupDoc.exists) {
+            throw new Error('Group not found');
+        }
+
+        // Check if member
+        const memberDoc = await groupRef.collection('members').doc(userId).get();
+        if (!memberDoc.exists) {
+            throw new Error('Not a member of this group');
+        }
+
+        const memberData = memberDoc.data();
+
+        // Don't allow admin to leave if they're the only admin
+        if (memberData.role === 'admin') {
+            const adminsSnapshot = await groupRef.collection('members')
+                .where('role', '==', 'admin')
+                .get();
+
+            if (adminsSnapshot.size === 1) {
+                throw new Error('Cannot leave group as the only admin. Please assign another admin first or delete the group.');
+            }
+        }
+
+        // Remove from members
+        await groupRef.collection('members').doc(userId).delete();
+
+        // Decrement member count
+        await groupRef.update({
+            memberCount: admin.firestore.FieldValue.increment(-1),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Remove from user's groups
+        await db.collection('users').doc(userId).collection('groups').doc(groupId).delete();
+
+        logger.log(`User ${userId} left group ${groupId}`);
+
+        return {
+            success: true,
+            message: 'Successfully left group'
+        };
+
+    } catch (error) {
+        logger.error('Error leaving group:', error);
+        throw new Error(error.message || 'Failed to leave group');
+    }
+});
+
+/**
+ * Update group details (admin only)
+ */
+exports.updateGroup = onCall(async (request) => {
+    const { auth, data } = request;
+
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const { groupId, name, description, isPrivate, tags } = data;
+
+    if (!groupId) {
+        throw new Error('Group ID is required');
+    }
+
+    const db = getFirestore();
+
+    try {
+        const groupRef = db.collection('groups').doc(groupId);
+        const groupDoc = await groupRef.get();
+
+        if (!groupDoc.exists) {
+            throw new Error('Group not found');
+        }
+
+        // Check if user is admin
+        const memberDoc = await groupRef.collection('members').doc(userId).get();
+        if (!memberDoc.exists || memberDoc.data().role !== 'admin') {
+            throw new Error('Admin privileges required');
+        }
+
+        // Validation
+        if (name && name.length > 100) {
+            throw new Error('Group name cannot exceed 100 characters');
+        }
+
+        if (description && description.length > 1000) {
+            throw new Error('Description cannot exceed 1000 characters');
+        }
+
+        // Build update object
+        const updates = {
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        if (name !== undefined) updates.name = name.trim();
+        if (description !== undefined) updates.description = description.trim();
+        if (isPrivate !== undefined) updates.isPrivate = isPrivate;
+        if (tags !== undefined) updates.tags = tags;
+
+        await groupRef.update(updates);
+
+        logger.log(`Group ${groupId} updated by user ${userId}`);
+
+        return {
+            success: true,
+            message: 'Group updated successfully'
+        };
+
+    } catch (error) {
+        logger.error('Error updating group:', error);
+        throw new Error(error.message || 'Failed to update group');
+    }
+});
+
+/**
+ * Delete a reading group (admin only)
+ */
+exports.deleteGroup = onCall(async (request) => {
+    const { auth, data } = request;
+
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const { groupId } = data;
+
+    if (!groupId) {
+        throw new Error('Group ID is required');
+    }
+
+    const db = getFirestore();
+
+    try {
+        const groupRef = db.collection('groups').doc(groupId);
+        const groupDoc = await groupRef.get();
+
+        if (!groupDoc.exists) {
+            throw new Error('Group not found');
+        }
+
+        // Check if user is admin
+        const memberDoc = await groupRef.collection('members').doc(userId).get();
+        if (!memberDoc.exists || memberDoc.data().role !== 'admin') {
+            throw new Error('Admin privileges required');
+        }
+
+        // Delete all members
+        const membersSnapshot = await groupRef.collection('members').get();
+        const batch = db.batch();
+
+        membersSnapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+
+        // Delete all posts
+        const postsSnapshot = await groupRef.collection('posts').get();
+        postsSnapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+
+        await batch.commit();
+
+        // Delete group document
+        await groupRef.delete();
+
+        // Remove from all users' groups subcollections
+        const usersSnapshot = await db.collectionGroup('groups')
+            .where('groupId', '==', groupId)
+            .get();
+
+        const userBatch = db.batch();
+        usersSnapshot.docs.forEach(doc => {
+            userBatch.delete(doc.ref);
+        });
+        await userBatch.commit();
+
+        logger.log(`Group ${groupId} deleted by user ${userId}`);
+
+        return {
+            success: true,
+            message: 'Group deleted successfully'
+        };
+
+    } catch (error) {
+        logger.error('Error deleting group:', error);
+        throw new Error(error.message || 'Failed to delete group');
+    }
+});
+
+/**
+ * Create a group discussion post
+ */
+exports.createGroupPost = onCall(async (request) => {
+    const { auth, data } = request;
+
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const { groupId, title, content, highlightId } = data;
+
+    if (!groupId) {
+        throw new Error('Group ID is required');
+    }
+
+    if (!title || title.trim().length === 0) {
+        throw new Error('Post title is required');
+    }
+
+    if (title.length > 200) {
+        throw new Error('Post title cannot exceed 200 characters');
+    }
+
+    if (content && content.length > 5000) {
+        throw new Error('Post content cannot exceed 5000 characters');
+    }
+
+    const db = getFirestore();
+
+    try {
+        const groupRef = db.collection('groups').doc(groupId);
+        const groupDoc = await groupRef.get();
+
+        if (!groupDoc.exists) {
+            throw new Error('Group not found');
+        }
+
+        // Check if user is a member
+        const memberDoc = await groupRef.collection('members').doc(userId).get();
+        if (!memberDoc.exists) {
+            throw new Error('Must be a member to post');
+        }
+
+        // Get user info
+        const userDoc = await db.collection('users').doc(userId).get();
+        const userData = userDoc.data();
+
+        // Create post
+        const postData = {
+            title: title.trim(),
+            content: content?.trim() || '',
+            authorId: userId,
+            authorName: userData.displayName || 'Anonymous',
+            authorPhotoURL: userData.photoURL || null,
+            highlightId: highlightId || null,
+            commentCount: 0,
+            likeCount: 0,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        const postRef = await groupRef.collection('posts').add(postData);
+
+        // Increment post count
+        await groupRef.update({
+            postCount: admin.firestore.FieldValue.increment(1),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        logger.log(`Post created in group ${groupId} by user ${userId}`);
+
+        return {
+            success: true,
+            postId: postRef.id,
+            message: 'Post created successfully'
+        };
+
+    } catch (error) {
+        logger.error('Error creating group post:', error);
+        throw new Error(error.message || 'Failed to create post');
+    }
+});
+
+/**
+ * Trigger when someone joins a group
+ * Notifies group admins
+ */
+exports.onGroupJoin = onDocumentCreated(
+    "groups/{groupId}/members/{userId}",
+    async (event) => {
+        const groupId = event.params.groupId;
+        const userId = event.params.userId;
+        const memberData = event.data.data();
+        const db = getFirestore();
+
+        try {
+            // Get group info
+            const groupDoc = await db.collection('groups').doc(groupId).get();
+            if (!groupDoc.exists) return;
+
+            const groupData = groupDoc.data();
+
+            // Get all admins
+            const adminsSnapshot = await db
+                .collection('groups')
+                .doc(groupId)
+                .collection('members')
+                .where('role', '==', 'admin')
+                .get();
+
+            // Notify each admin (except if they're the one who joined)
+            const batch = db.batch();
+
+            for (const adminDoc of adminsSnapshot.docs) {
+                const adminId = adminDoc.id;
+
+                if (adminId === userId) continue; // Don't notify self
+
+                const notificationRef = db
+                    .collection('users')
+                    .doc(adminId)
+                    .collection('notifications')
+                    .doc();
+
+                batch.set(notificationRef, {
+                    type: 'group_join',
+                    actorId: userId,
+                    actorName: memberData.userName || 'Someone',
+                    actorPhotoURL: memberData.userPhotoURL || null,
+                    groupId: groupId,
+                    groupName: groupData.name,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    read: false
+                });
+
+                // Increment unread count
+                const userRef = db.collection('users').doc(adminId);
+                batch.update(userRef, {
+                    unreadNotifications: admin.firestore.FieldValue.increment(1)
+                });
+            }
+
+            await batch.commit();
+
+            logger.log(`Notified admins of user ${userId} joining group ${groupId}`);
+
+        } catch (error) {
+            logger.error('Error in onGroupJoin trigger:', error);
+        }
+    }
+);

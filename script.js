@@ -127,6 +127,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Initialize feed link and unread count
             initializeFeedLink(user);
 
+            // Initialize groups link
+            initializeGroupsLink(user);
+
             // Initialize notification bell
             if (window.notificationUI) {
                 window.notificationUI.initializeNotificationBell();
@@ -190,6 +193,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.error('Error initializing feed link:', error);
             }
         }
+    };
+
+    // Initialize groups link
+    const initializeGroupsLink = (user) => {
+        const groupsLink = document.getElementById('groups-link');
+
+        if (!groupsLink || !user) return;
+
+        // Show groups link
+        groupsLink.style.display = 'flex';
     };
 
     onAuthStateChanged(auth, user => {

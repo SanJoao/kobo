@@ -198,6 +198,14 @@ export class NotificationManager {
                 link = `/user/${notification.actorId}?highlight=${notification.highlightId}`;
                 break;
 
+            case 'group_join':
+                content = `
+                    <strong>${this.escapeHtml(notification.actorName)}</strong> joined your group
+                    <p class="notification-preview">"${this.escapeHtml(notification.groupName)}"</p>
+                `;
+                link = `/groups.html`;
+                break;
+
             default:
                 content = `<p>New notification</p>`;
                 link = '#';
