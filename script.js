@@ -130,6 +130,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Initialize groups link
             initializeGroupsLink(user);
 
+            // Initialize search link
+            initializeSearchLink(user);
+
             // Initialize notification bell
             if (window.notificationUI) {
                 window.notificationUI.initializeNotificationBell();
@@ -203,6 +206,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Show groups link
         groupsLink.style.display = 'flex';
+    };
+
+    // Initialize search link
+    const initializeSearchLink = (user) => {
+        const searchLink = document.getElementById('search-link');
+
+        if (!searchLink || !user) return;
+
+        // Show search link
+        searchLink.style.display = 'flex';
     };
 
     onAuthStateChanged(auth, user => {
