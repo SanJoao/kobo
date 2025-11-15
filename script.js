@@ -1305,6 +1305,21 @@ async function toggleLike(highlightId, authorId) {
         highlightEl.appendChild(date);
 
         modalContent.appendChild(highlightEl);
+
+        // Add comments section
+        const commentsContainer = document.createElement('div');
+        commentsContainer.id = 'highlight-comments-container';
+        modalContent.appendChild(commentsContainer);
+
+        // Initialize comments
+        if (window.commentUI && highlight.highlight_id && highlight.user_id) {
+            window.commentUI.initializeComments(
+                highlight.highlight_id,
+                highlight.user_id,
+                'highlight-comments-container'
+            );
+        }
+
         modal.style.display = 'flex';
 
         // Update URL
@@ -1319,6 +1334,11 @@ async function toggleLike(highlightId, authorId) {
 
     function closeFocusModal() {
         modal.style.display = 'none';
+
+        // Cleanup comment listeners
+        if (window.commentUI) {
+            window.commentUI.cleanup();
+        }
         // Update URL
         const url = new URL(window.location);
         url.searchParams.delete('highlight');

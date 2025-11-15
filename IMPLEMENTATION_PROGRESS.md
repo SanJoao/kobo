@@ -144,12 +144,12 @@ This document tracks the implementation of improvements outlined in the `/docs` 
 ### Phase 4: Engagement (Weeks 13-16) - Deep Community
 
 #### Comments & Notifications (Week 13-14)
-- [ ] Create Firestore schema for comments
+- [x] Create Firestore schema for comments
 - [ ] Create Firestore schema for notifications
-- [ ] Build comment CRUD Cloud Functions
+- [x] Build comment CRUD Cloud Functions
 - [ ] Build notification triggers (comment, reply, like, follow)
-- [ ] Add comment UI component
-- [ ] Add threaded replies
+- [x] Add comment UI component
+- [x] Add threaded replies
 - [ ] Create notification system (bell icon + badge)
 - [ ] Build notification dropdown panel
 - [ ] Add email notification option
@@ -157,7 +157,7 @@ This document tracks the implementation of improvements outlined in the `/docs` 
 - [ ] Create moderation queue (admin tool)
 - [ ] Track comment/notification analytics
 
-**Status:** Not Started
+**Status:** ✅ 33% COMPLETE (4/12 tasks done)
 **Priority:** P1
 
 ---
@@ -478,9 +478,49 @@ This document tracks the implementation of improvements outlined in the `/docs` 
     - Dark mode support
     - Responsive design (stacks on mobile)
 
+**Current Session (Continued) - Phase 4A: Comment System:**
+39. ✅ Added comment Cloud Functions (functions/index.js - +230 lines)
+    - createComment() - Add comments and replies
+    - updateComment() - Edit own comments
+    - deleteComment() - Delete with soft-delete for threads
+    - 1000 character limit enforced
+    - Parent/child relationship for threaded replies
+    - Reply count tracking
+    - Permissions (owner + highlight owner can delete)
+40. ✅ Created comment-manager.js - Client-side operations (320 lines)
+    - Load comments with real-time listeners
+    - Create, update, delete comments
+    - Organize into threaded structure
+    - Subscribe/unsubscribe from updates
+    - XSS protection with HTML escaping
+    - Time ago formatting
+41. ✅ Created comment-ui.js - UI components (280 lines)
+    - Initialize comment sections
+    - Render threaded comments
+    - Comment form with character counter
+    - Reply forms (inline)
+    - Edit/delete buttons
+    - Login prompts for guests
+42. ✅ Updated script.js - Modal integration
+    - Add comments to highlight focus modal
+    - Initialize CommentUI on modal open
+    - Cleanup listeners on modal close
+43. ✅ Updated index.html - Load comment scripts
+    - Added comment-manager.js
+    - Added comment-ui.js
+44. ✅ Updated style.css - Comment styles (+250 lines)
+    - Comment section layout
+    - Comment cards with avatars
+    - Threaded reply indentation
+    - Comment forms and buttons
+    - Edit/delete actions
+    - Dark mode support
+    - Responsive design
+
 **Phase 1 Status: 95% COMPLETE** (Only 2 optional items remaining: Firebase Performance Monitoring, lazy loading)
 **Phase 2 Status: 90% COMPLETE** (Only analytics tracking remaining)
 **Phase 3 Status: 95% COMPLETE** (Following system + Activity feed + Discovery widgets done! Only analytics tracking remaining)
+**Phase 4 Status: 33% COMPLETE** (Comment system done! Notifications, groups, and advanced search remaining)
 
 **Next Steps:**
 1. Deploy Cloud Functions: `firebase deploy --only functions`

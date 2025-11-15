@@ -680,3 +680,251 @@ exports.cleanupFeeds = onSchedule("0 0 * * *", async (event) => {
         logger.error('Error cleaning up feeds:', error);
     }
 });
+
+/**
+ * Comments System
+ * CRUD operations for highlight comments
+ */
+
+/**
+ * Create a comment on a highlight
+ */
+exports.createComment = onCall(async (request) => {
+    const { auth, data } = request;
+
+    // Check authentication
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const { highlightId, highlightOwnerId, text, parentId } = data;
+
+    if (!highlightId || !text || !highlightOwnerId) {
+        throw new Error('highlightId, highlightOwnerId, and text are required');
+    }
+
+    if (text.trim().length === 0) {
+        throw new Error('Comment text cannot be empty');
+    }
+
+    if (text.length > 1000) {
+        throw new Error('Comment text cannot exceed 1000 characters');
+    }
+
+    const db = getFirestore();
+
+    try {
+        // Get user info
+        const userDoc = await db.collection('users').doc(userId).get();
+        if (!userDoc.exists) {
+            throw new Error('User not found');
+        }
+
+        const userData = userDoc.data();
+
+        // Create comment
+        const commentData = {
+            userId,
+            userName: userData.displayName || 'Anonymous',
+            userPhotoURL: userData.photoURL || null,
+            text: text.trim(),
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            edited: false,
+            highlightId,
+            highlightOwnerId,
+            parentId: parentId || null,
+            replyCount: 0
+        };
+
+        // Add comment to highlight owner's comments subcollection
+        const commentRef = await db
+            .collection('users')
+            .doc(highlightOwnerId)
+            .collection('highlights')
+            .doc(highlightId)
+            .collection('comments')
+            .add(commentData);
+
+        // If it's a reply, increment parent's reply count
+        if (parentId) {
+            const parentCommentRef = db
+                .collection('users')
+                .doc(highlightOwnerId)
+                .collection('highlights')
+                .doc(highlightId)
+                .collection('comments')
+                .doc(parentId);
+
+            await parentCommentRef.update({
+                replyCount: admin.firestore.FieldValue.increment(1)
+            });
+        }
+
+        logger.log(`Comment created: ${commentRef.id} by user ${userId} on highlight ${highlightId}`);
+
+        return {
+            success: true,
+            commentId: commentRef.id,
+            comment: {
+                id: commentRef.id,
+                ...commentData,
+                timestamp: new Date()
+            }
+        };
+
+    } catch (error) {
+        logger.error('Error creating comment:', error);
+        throw new Error(error.message || 'Failed to create comment');
+    }
+});
+
+/**
+ * Update a comment
+ */
+exports.updateComment = onCall(async (request) => {
+    const { auth, data } = request;
+
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const { commentId, highlightId, highlightOwnerId, text } = data;
+
+    if (!commentId || !highlightId || !highlightOwnerId || !text) {
+        throw new Error('commentId, highlightId, highlightOwnerId, and text are required');
+    }
+
+    if (text.trim().length === 0) {
+        throw new Error('Comment text cannot be empty');
+    }
+
+    if (text.length > 1000) {
+        throw new Error('Comment text cannot exceed 1000 characters');
+    }
+
+    const db = getFirestore();
+
+    try {
+        const commentRef = db
+            .collection('users')
+            .doc(highlightOwnerId)
+            .collection('highlights')
+            .doc(highlightId)
+            .collection('comments')
+            .doc(commentId);
+
+        const commentDoc = await commentRef.get();
+
+        if (!commentDoc.exists) {
+            throw new Error('Comment not found');
+        }
+
+        const commentData = commentDoc.data();
+
+        // Check if user owns the comment
+        if (commentData.userId !== userId) {
+            throw new Error('You can only edit your own comments');
+        }
+
+        // Update comment
+        await commentRef.update({
+            text: text.trim(),
+            edited: true,
+            editedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        logger.log(`Comment updated: ${commentId} by user ${userId}`);
+
+        return {
+            success: true,
+            message: 'Comment updated successfully'
+        };
+
+    } catch (error) {
+        logger.error('Error updating comment:', error);
+        throw new Error(error.message || 'Failed to update comment');
+    }
+});
+
+/**
+ * Delete a comment
+ */
+exports.deleteComment = onCall(async (request) => {
+    const { auth, data } = request;
+
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const { commentId, highlightId, highlightOwnerId, parentId } = data;
+
+    if (!commentId || !highlightId || !highlightOwnerId) {
+        throw new Error('commentId, highlightId, and highlightOwnerId are required');
+    }
+
+    const db = getFirestore();
+
+    try {
+        const commentRef = db
+            .collection('users')
+            .doc(highlightOwnerId)
+            .collection('highlights')
+            .doc(highlightId)
+            .collection('comments')
+            .doc(commentId);
+
+        const commentDoc = await commentRef.get();
+
+        if (!commentDoc.exists) {
+            throw new Error('Comment not found');
+        }
+
+        const commentData = commentDoc.data();
+
+        // Check if user owns the comment or owns the highlight
+        if (commentData.userId !== userId && highlightOwnerId !== userId) {
+            throw new Error('You can only delete your own comments or comments on your highlights');
+        }
+
+        // If comment has replies, just mark as deleted instead of removing
+        if (commentData.replyCount > 0) {
+            await commentRef.update({
+                text: '[deleted]',
+                deleted: true,
+                deletedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+        } else {
+            // No replies, safe to delete completely
+            await commentRef.delete();
+
+            // If it's a reply, decrement parent's reply count
+            if (parentId) {
+                const parentCommentRef = db
+                    .collection('users')
+                    .doc(highlightOwnerId)
+                    .collection('highlights')
+                    .doc(highlightId)
+                    .collection('comments')
+                    .doc(parentId);
+
+                await parentCommentRef.update({
+                    replyCount: admin.firestore.FieldValue.increment(-1)
+                });
+            }
+        }
+
+        logger.log(`Comment deleted: ${commentId} by user ${userId}`);
+
+        return {
+            success: true,
+            message: 'Comment deleted successfully'
+        };
+
+    } catch (error) {
+        logger.error('Error deleting comment:', error);
+        throw new Error(error.message || 'Failed to delete comment');
+    }
+});
