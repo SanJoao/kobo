@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Reading Recap - Koby</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+    <header id="header" class="header"></header>
+
+    <main class="recap-page">
+        <!-- Loading State -->
+        <div class="recap-loading" id="recap-loading">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Generating your reading recap...</p>
+        </div>
+
+        <!-- Recap Slides Container -->
+        <div class="recap-container" id="recap-container" style="display: none;">
+            <!-- Slide 1: Welcome -->
+            <div class="recap-slide active" data-slide="0">
+                <div class="slide-content">
+                    <div class="slide-emoji">📚</div>
+                    <h1 class="slide-title">Your Reading Recap</h1>
+                    <h2 class="slide-year" id="recap-year">2024</h2>
+                    <p class="slide-subtitle">Let's look back at your reading journey</p>
+                </div>
+            </div>
+
+            <!-- Slide 2: Total Highlights -->
+            <div class="recap-slide" data-slide="1">
+                <div class="slide-content">
+                    <p class="slide-label">You saved</p>
+                    <h1 class="slide-big-number" id="total-highlights-slide">0</h1>
+                    <p class="slide-label">highlights this year</p>
+                    <div class="slide-icon-animation">
+                        <i class="fas fa-highlighter"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 3: Books Read -->
+            <div class="recap-slide" data-slide="2">
+                <div class="slide-content">
+                    <p class="slide-label">From</p>
+                    <h1 class="slide-big-number" id="unique-books-slide">0</h1>
+                    <p class="slide-label">different books</p>
+                    <div class="slide-icon-animation">
+                        <i class="fas fa-book"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 4: Most Highlighted Book -->
+            <div class="recap-slide" data-slide="3">
+                <div class="slide-content">
+                    <p class="slide-label">Your most highlighted book</p>
+                    <h2 class="slide-book-title" id="top-book-title">Book Title</h2>
+                    <p class="slide-book-author" id="top-book-author">by Author</p>
+                    <div class="slide-highlight-count" id="top-book-count">0 highlights</div>
+                    <div class="slide-icon-animation">
+                        <i class="fas fa-star"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 5: Reading Patterns -->
+            <div class="recap-slide" data-slide="4">
+                <div class="slide-content">
+                    <p class="slide-label">You're a</p>
+                    <h1 class="slide-time-preference" id="time-preference">Night Owl</h1>
+                    <p class="slide-subtitle" id="peak-reading-time">Most active around 10 PM</p>
+                    <div class="slide-icon-animation">
+                        <i class="fas fa-clock" id="time-icon"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 6: Peak Month -->
+            <div class="recap-slide" data-slide="5">
+                <div class="slide-content">
+                    <p class="slide-label">Your peak reading month</p>
+                    <h1 class="slide-month" id="peak-month">January</h1>
+                    <div class="slide-icon-animation">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 7: Longest Streak -->
+            <div class="recap-slide" data-slide="6">
+                <div class="slide-content">
+                    <p class="slide-label">Your longest reading streak</p>
+                    <h1 class="slide-big-number" id="longest-streak-slide">0</h1>
+                    <p class="slide-label">days in a row</p>
+                    <div class="slide-icon-animation">
+                        <i class="fas fa-fire"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 8: Reading Personality -->
+            <div class="recap-slide" data-slide="7">
+                <div class="slide-content">
+                    <p class="slide-label">You're</p>
+                    <h1 class="slide-personality-emoji" id="personality-emoji">🦉</h1>
+                    <h2 class="slide-personality-type" id="personality-type">The Night Owl</h2>
+                    <p class="slide-personality-desc" id="personality-desc">Your best reading happens when the world is quiet and the stars are out.</p>
+                </div>
+            </div>
+
+            <!-- Slide 9: Fun Facts -->
+            <div class="recap-slide" data-slide="8">
+                <div class="slide-content">
+                    <h2 class="slide-title">Fun Facts</h2>
+                    <div class="fun-facts-list" id="fun-facts-list">
+                        <div class="fun-fact">
+                            <i class="fas fa-check-circle"></i>
+                            <p>Loading fun facts...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 10: Share -->
+            <div class="recap-slide" data-slide="9">
+                <div class="slide-content">
+                    <div class="slide-emoji">🎉</div>
+                    <h2 class="slide-title">What a Year!</h2>
+                    <p class="slide-subtitle">Share your reading journey</p>
+                    <div class="share-buttons">
+                        <button class="share-button" id="share-twitter">
+                            <i class="fab fa-twitter"></i>
+                            Share on Twitter
+                        </button>
+                        <button class="share-button" id="download-recap">
+                            <i class="fas fa-download"></i>
+                            Download Recap
+                        </button>
+                        <button class="share-button secondary" id="view-stats">
+                            <i class="fas fa-chart-line"></i>
+                            View Full Stats
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="recap-navigation">
+                <button class="nav-button prev" id="prev-slide" disabled>
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <div class="slide-indicators" id="slide-indicators">
+                    <!-- Dots will be inserted here -->
+                </div>
+                <button class="nav-button next" id="next-slide">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+
+            <!-- Year Selector (top right) -->
+            <div class="year-selector" id="year-selector">
+                <select id="year-select">
+                    <!-- Years will be populated here -->
+                </select>
+            </div>
+        </div>
+    </main>
+
+    <script type="module" src="/firebase-config.js"></script>
+    <script type="module" src="/recap-generator.js"></script>
+    <script type="module">
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        const auth = getAuth();
+        let currentUser = null;
+        let currentSlide = 0;
+        let totalSlides = 10;
+        let recapData = null;
+
+        // Load header
+        fetch('/header.html')
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('header').innerHTML = data;
+            });
+
+        // Wait for auth state
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                await loadRecap();
+            } else {
+                window.location.href = '/login.html';
+            }
+        });
+
+        // Load recap
+        async function loadRecap() {
+            try {
+                // Get available years
+                const years = await window.recapGenerator.getAvailableYears(currentUser.uid);
+                populateYearSelector(years);
+
+                // Load current year recap
+                const currentYear = new Date().getFullYear();
+                await generateRecap(currentYear);
+
+                // Show recap, hide loading
+                document.getElementById('recap-loading').style.display = 'none';
+                document.getElementById('recap-container').style.display = 'block';
+
+                // Initialize slide indicators
+                initializeSlideIndicators();
+
+            } catch (error) {
+                console.error('Error loading recap:', error);
+                document.getElementById('recap-loading').innerHTML = `
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>Error loading recap. Please try again.</p>
+                `;
+            }
+        }
+
+        // Generate recap for specific year
+        async function generateRecap(year) {
+            recapData = await window.recapGenerator.generateRecap(currentUser.uid, year);
+
+            if (!recapData) {
+                throw new Error('No recap data available');
+            }
+
+            displayRecap(recapData);
+        }
+
+        // Display recap data
+        function displayRecap(recap) {
+            // Slide 1: Year
+            document.getElementById('recap-year').textContent = recap.year;
+
+            // Slide 2: Total highlights
+            document.getElementById('total-highlights-slide').textContent = recap.totalHighlights.toLocaleString();
+
+            // Slide 3: Unique books
+            document.getElementById('unique-books-slide').textContent = recap.uniqueBooks;
+
+            // Slide 4: Most highlighted book
+            if (recap.mostHighlightedBook) {
+                document.getElementById('top-book-title').textContent = recap.mostHighlightedBook.title;
+                document.getElementById('top-book-author').textContent = `by ${recap.mostHighlightedBook.author}`;
+                document.getElementById('top-book-count').textContent = `${recap.mostHighlightedBook.count} highlights`;
+            } else {
+                document.getElementById('top-book-title').textContent = 'No books yet';
+                document.getElementById('top-book-author').textContent = '';
+                document.getElementById('top-book-count').textContent = '';
+            }
+
+            // Slide 5: Time preference
+            document.getElementById('time-preference').textContent = recap.timePreference;
+            document.getElementById('peak-reading-time').textContent = `Most active around ${formatHour(recap.peakHour)}`;
+
+            // Update icon based on time preference
+            const timeIcon = document.getElementById('time-icon');
+            if (recap.timePreference === 'morning reader') {
+                timeIcon.className = 'fas fa-sun';
+            } else if (recap.timePreference === 'afternoon reader') {
+                timeIcon.className = 'fas fa-cloud-sun';
+            } else if (recap.timePreference === 'evening reader') {
+                timeIcon.className = 'fas fa-moon';
+            } else {
+                timeIcon.className = 'fas fa-moon';
+            }
+
+            // Slide 6: Peak month
+            document.getElementById('peak-month').textContent = recap.peakMonth;
+
+            // Slide 7: Longest streak
+            document.getElementById('longest-streak-slide').textContent = recap.streakData.longestStreak;
+
+            // Slide 8: Personality
+            document.getElementById('personality-emoji').textContent = recap.personality.emoji;
+            document.getElementById('personality-type').textContent = recap.personality.type;
+            document.getElementById('personality-desc').textContent = recap.personality.description;
+
+            // Slide 9: Fun facts
+            const funFacts = window.recapGenerator.generateFunFacts(recap);
+            displayFunFacts(funFacts);
+        }
+
+        // Display fun facts
+        function displayFunFacts(facts) {
+            const container = document.getElementById('fun-facts-list');
+
+            if (facts.length === 0) {
+                container.innerHTML = '<div class="fun-fact"><i class="fas fa-book"></i><p>Keep reading to generate fun facts!</p></div>';
+                return;
+            }
+
+            let html = '';
+            facts.forEach(fact => {
+                html += `
+                    <div class="fun-fact">
+                        <i class="fas fa-check-circle"></i>
+                        <p>${escapeHtml(fact)}</p>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // Format hour for display
+        function formatHour(hour) {
+            if (hour === 0) return '12 AM';
+            if (hour < 12) return `${hour} AM`;
+            if (hour === 12) return '12 PM';
+            return `${hour - 12} PM`;
+        }
+
+        // Populate year selector
+        function populateYearSelector(years) {
+            const select = document.getElementById('year-select');
+            const currentYear = new Date().getFullYear();
+
+            if (years.length === 0) {
+                select.innerHTML = `<option value="${currentYear}">${currentYear}</option>`;
+                return;
+            }
+
+            let html = '';
+            years.forEach(year => {
+                html += `<option value="${year}" ${year === currentYear ? 'selected' : ''}>${year}</option>`;
+            });
+
+            select.innerHTML = html;
+
+            // Handle year change
+            select.addEventListener('change', async (e) => {
+                const selectedYear = parseInt(e.target.value);
+                document.getElementById('recap-loading').style.display = 'flex';
+                document.getElementById('recap-container').style.display = 'none';
+
+                await generateRecap(selectedYear);
+
+                document.getElementById('recap-loading').style.display = 'none';
+                document.getElementById('recap-container').style.display = 'block';
+
+                // Reset to first slide
+                goToSlide(0);
+            });
+        }
+
+        // Initialize slide indicators
+        function initializeSlideIndicators() {
+            const container = document.getElementById('slide-indicators');
+            let html = '';
+
+            for (let i = 0; i < totalSlides; i++) {
+                html += `<div class="slide-dot ${i === 0 ? 'active' : ''}" data-slide="${i}"></div>`;
+            }
+
+            container.innerHTML = html;
+
+            // Add click handlers
+            document.querySelectorAll('.slide-dot').forEach(dot => {
+                dot.addEventListener('click', (e) => {
+                    const slideIndex = parseInt(e.target.dataset.slide);
+                    goToSlide(slideIndex);
+                });
+            });
+        }
+
+        // Navigation
+        document.getElementById('next-slide').addEventListener('click', () => {
+            if (currentSlide < totalSlides - 1) {
+                goToSlide(currentSlide + 1);
+            }
+        });
+
+        document.getElementById('prev-slide').addEventListener('click', () => {
+            if (currentSlide > 0) {
+                goToSlide(currentSlide - 1);
+            }
+        });
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') {
+                document.getElementById('next-slide').click();
+            } else if (e.key === 'ArrowLeft') {
+                document.getElementById('prev-slide').click();
+            }
+        });
+
+        // Go to specific slide
+        function goToSlide(index) {
+            // Remove active class from current slide
+            document.querySelectorAll('.recap-slide').forEach(slide => {
+                slide.classList.remove('active');
+            });
+
+            // Add active class to new slide
+            const slides = document.querySelectorAll('.recap-slide');
+            slides[index].classList.add('active');
+
+            // Update indicators
+            document.querySelectorAll('.slide-dot').forEach((dot, i) => {
+                if (i === index) {
+                    dot.classList.add('active');
+                } else {
+                    dot.classList.remove('active');
+                }
+            });
+
+            // Update navigation buttons
+            document.getElementById('prev-slide').disabled = index === 0;
+            document.getElementById('next-slide').disabled = index === totalSlides - 1;
+
+            currentSlide = index;
+        }
+
+        // Share on Twitter
+        document.getElementById('share-twitter').addEventListener('click', () => {
+            if (!recapData) return;
+
+            const text = `I read ${recapData.totalHighlights} highlights from ${recapData.uniqueBooks} books in ${recapData.year}! 📚✨ Check out my reading personality: ${recapData.personality.type} ${recapData.personality.emoji}`;
+            const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
+            window.open(url, '_blank');
+        });
+
+        // Download recap
+        document.getElementById('download-recap').addEventListener('click', async () => {
+            try {
+                const button = document.getElementById('download-recap');
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+
+                // Create a canvas for each slide
+                const slides = document.querySelectorAll('.recap-slide');
+                const zip = [];
+
+                for (let i = 0; i < slides.length; i++) {
+                    // Temporarily show slide
+                    const currentActive = document.querySelector('.recap-slide.active');
+                    currentActive.classList.remove('active');
+                    slides[i].classList.add('active');
+
+                    await new Promise(resolve => setTimeout(resolve, 100));
+
+                    // Capture slide
+                    const canvas = await html2canvas(slides[i], {
+                        backgroundColor: '#667eea',
+                        scale: 2
+                    });
+
+                    // Download
+                    const link = document.createElement('a');
+                    link.download = `reading-recap-${recapData.year}-slide-${i + 1}.png`;
+                    link.href = canvas.toDataURL();
+                    link.click();
+
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                }
+
+                // Restore current slide
+                slides[currentSlide].classList.add('active');
+
+                button.disabled = false;
+                button.innerHTML = '<i class="fas fa-download"></i> Download Recap';
+
+            } catch (error) {
+                console.error('Error downloading recap:', error);
+                alert('Error downloading recap. Please try again.');
+
+                const button = document.getElementById('download-recap');
+                button.disabled = false;
+                button.innerHTML = '<i class="fas fa-download"></i> Download Recap';
+            }
+        });
+
+        // View full stats
+        document.getElementById('view-stats').addEventListener('click', () => {
+            window.location.href = '/stats.html';
+        });
+
+        // Helper function
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
