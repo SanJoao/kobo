@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Reading Stats - Koby</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <header id="header" class="header"></header>
+
+    <main class="stats-page">
+        <div class="stats-container">
+            <!-- Page Header -->
+            <div class="stats-header">
+                <h1><i class="fas fa-chart-line"></i> My Reading Stats</h1>
+                <p class="stats-subtitle">Track your reading journey and celebrate your progress</p>
+            </div>
+
+            <!-- Loading State -->
+            <div class="stats-loading" id="stats-loading">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Loading your stats...</p>
+            </div>
+
+            <!-- Stats Content (hidden until loaded) -->
+            <div class="stats-content" id="stats-content" style="display: none;">
+
+                <!-- Streak Section -->
+                <div class="streak-section">
+                    <div class="streak-card">
+                        <div class="streak-icon">
+                            <i class="fas fa-fire"></i>
+                        </div>
+                        <div class="streak-info">
+                            <h2 class="streak-number" id="current-streak">0</h2>
+                            <p class="streak-label">Day Streak</p>
+                            <p class="streak-sub">Longest: <span id="longest-streak">0</span> days</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Key Stats Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon books-icon">
+                            <i class="fas fa-book"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3 class="stat-number" id="total-books">0</h3>
+                            <p class="stat-label">Books</p>
+                            <p class="stat-sub" id="finished-books">0 finished</p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon highlights-icon">
+                            <i class="fas fa-highlighter"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3 class="stat-number" id="total-highlights">0</h3>
+                            <p class="stat-label">Highlights</p>
+                            <p class="stat-sub" id="highlights-per-book">0 per book</p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon time-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3 class="stat-number" id="reading-time">0h</h3>
+                            <p class="stat-label">Reading Time</p>
+                            <p class="stat-sub" id="reading-speed">~0 wpm</p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon completion-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3 class="stat-number" id="completion-rate">0%</h3>
+                            <p class="stat-label">Completion</p>
+                            <p class="stat-sub" id="total-words">0 words read</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Activity Heatmap -->
+                <div class="activity-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-calendar-alt"></i>
+                        Reading Activity
+                    </h2>
+                    <div class="activity-heatmap" id="activity-heatmap">
+                        <div class="heatmap-loading">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </div>
+                    </div>
+                    <div class="heatmap-legend">
+                        <span>Less</span>
+                        <div class="legend-boxes">
+                            <div class="legend-box level-0"></div>
+                            <div class="legend-box level-1"></div>
+                            <div class="legend-box level-2"></div>
+                            <div class="legend-box level-3"></div>
+                            <div class="legend-box level-4"></div>
+                        </div>
+                        <span>More</span>
+                    </div>
+                </div>
+
+                <!-- Monthly Chart -->
+                <div class="chart-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-chart-bar"></i>
+                        Highlights by Month
+                        <span class="year-label" id="current-year">2024</span>
+                    </h2>
+                    <div class="monthly-chart" id="monthly-chart">
+                        <!-- Chart bars will be inserted here -->
+                    </div>
+                </div>
+
+                <!-- Insights Section -->
+                <div class="insights-section" id="insights-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-lightbulb"></i>
+                        Insights & Achievements
+                    </h2>
+                    <div class="insights-grid" id="insights-grid">
+                        <div class="insights-empty">
+                            <i class="fas fa-star"></i>
+                            <p>Keep reading to unlock insights!</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Books & Series -->
+                <div class="top-items-section">
+                    <div class="top-books">
+                        <h2 class="section-title">
+                            <i class="fas fa-bookmark"></i>
+                            Most Highlighted Books
+                        </h2>
+                        <div class="top-list" id="top-books-list">
+                            <p class="empty-list">No highlights yet</p>
+                        </div>
+                    </div>
+
+                    <div class="top-series">
+                        <h2 class="section-title">
+                            <i class="fas fa-layer-group"></i>
+                            Favorite Series
+                        </h2>
+                        <div class="top-list" id="top-series-list">
+                            <p class="empty-list">No series tracked yet</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script type="module" src="/firebase-config.js"></script>
+    <script type="module" src="/analytics-manager.js"></script>
+    <script type="module">
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        const auth = getAuth();
+        let currentUser = null;
+
+        // Load header
+        fetch('/header.html')
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('header').innerHTML = data;
+            });
+
+        // Wait for auth state
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                await loadAllStats();
+            } else {
+                window.location.href = '/login.html';
+            }
+        });
+
+        // Load all stats
+        async function loadAllStats() {
+            try {
+                // Update streak first
+                await window.analyticsManager.updateStreak(currentUser.uid);
+
+                // Load stats
+                const stats = await window.analyticsManager.getUserStats(currentUser.uid);
+                displayStats(stats);
+
+                // Load activity
+                const currentYear = new Date().getFullYear();
+                const activity = await window.analyticsManager.getReadingActivity(currentUser.uid, currentYear);
+                displayActivity(activity);
+
+                // Load insights
+                const insights = await window.analyticsManager.getInsights(currentUser.uid);
+                displayInsights(insights);
+
+                // Show content, hide loading
+                document.getElementById('stats-loading').style.display = 'none';
+                document.getElementById('stats-content').style.display = 'block';
+
+            } catch (error) {
+                console.error('Error loading stats:', error);
+                document.getElementById('stats-loading').innerHTML = `
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>Error loading stats. Please try again.</p>
+                `;
+            }
+        }
+
+        // Display stats
+        function displayStats(stats) {
+            // Streak
+            document.getElementById('current-streak').textContent = stats.currentStreak;
+            document.getElementById('longest-streak').textContent = stats.longestStreak;
+
+            // Books
+            document.getElementById('total-books').textContent = stats.totalBooks;
+            document.getElementById('finished-books').textContent = `${stats.finishedBooks} finished`;
+
+            // Highlights
+            document.getElementById('total-highlights').textContent = stats.totalHighlights;
+            document.getElementById('highlights-per-book').textContent = `${stats.highlightsPerBook} per book`;
+
+            // Reading time
+            const formattedTime = window.analyticsManager.formatReadingTime(stats.totalReadingTime);
+            document.getElementById('reading-time').textContent = formattedTime;
+
+            const readingSpeed = window.analyticsManager.calculateReadingSpeed(stats.totalWords, stats.totalReadingTime);
+            document.getElementById('reading-speed').textContent = `~${readingSpeed} wpm`;
+
+            // Completion
+            document.getElementById('completion-rate').textContent = `${stats.completionRate}%`;
+            document.getElementById('total-words').textContent = `${stats.totalWords.toLocaleString()} words`;
+
+            // Top books
+            if (stats.topBooks && stats.topBooks.length > 0) {
+                const booksHTML = stats.topBooks.map((book, index) => `
+                    <div class="top-item">
+                        <span class="top-rank">${index + 1}</span>
+                        <div class="top-item-info">
+                            <p class="top-item-name">${escapeHtml(book.title)}</p>
+                            <p class="top-item-count">${book.count} highlights</p>
+                        </div>
+                    </div>
+                `).join('');
+                document.getElementById('top-books-list').innerHTML = booksHTML;
+            }
+
+            // Top series
+            if (stats.topSeries && stats.topSeries.length > 0) {
+                const seriesHTML = stats.topSeries.map((series, index) => `
+                    <div class="top-item">
+                        <span class="top-rank">${index + 1}</span>
+                        <div class="top-item-info">
+                            <p class="top-item-name">${escapeHtml(series.name)}</p>
+                            <p class="top-item-count">${series.count} books</p>
+                        </div>
+                    </div>
+                `).join('');
+                document.getElementById('top-series-list').innerHTML = seriesHTML;
+            }
+        }
+
+        // Display activity heatmap
+        function displayActivity(activity) {
+            const heatmapContainer = document.getElementById('activity-heatmap');
+            document.getElementById('current-year').textContent = new Date().getFullYear();
+
+            if (!activity.last90Days || activity.last90Days.length === 0) {
+                heatmapContainer.innerHTML = '<p class="empty-heatmap">Start reading to see your activity!</p>';
+                return;
+            }
+
+            // Get max count for normalization
+            const maxCount = Math.max(...activity.last90Days.map(d => d.count), 1);
+
+            // Create weeks
+            const weeks = window.analyticsManager.getStreakCalendar(activity.last90Days);
+
+            // Render heatmap
+            let html = '<div class="heatmap-grid">';
+
+            weeks.forEach(week => {
+                html += '<div class="heatmap-week">';
+                week.forEach(day => {
+                    const level = day.count === 0 ? 0 : Math.min(Math.ceil((day.count / maxCount) * 4), 4);
+                    const date = new Date(day.date);
+                    const tooltip = `${date.toLocaleDateString()}: ${day.count} highlights`;
+
+                    html += `
+                        <div class="heatmap-day level-${level}"
+                             title="${tooltip}"
+                             data-count="${day.count}">
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            });
+
+            html += '</div>';
+            heatmapContainer.innerHTML = html;
+
+            // Display monthly chart
+            displayMonthlyChart(activity.monthCounts);
+        }
+
+        // Display monthly chart
+        function displayMonthlyChart(monthCounts) {
+            const chartContainer = document.getElementById('monthly-chart');
+            const maxCount = Math.max(...monthCounts, 1);
+
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+            let html = '';
+            monthCounts.forEach((count, index) => {
+                const heightPercent = (count / maxCount) * 100;
+
+                html += `
+                    <div class="chart-bar">
+                        <div class="chart-bar-fill" style="height: ${heightPercent}%">
+                            <span class="chart-bar-value">${count}</span>
+                        </div>
+                        <span class="chart-bar-label">${months[index]}</span>
+                    </div>
+                `;
+            });
+
+            chartContainer.innerHTML = html;
+        }
+
+        // Display insights
+        function displayInsights(insights) {
+            const insightsContainer = document.getElementById('insights-grid');
+
+            if (insights.length === 0) {
+                return; // Keep the empty state
+            }
+
+            let html = '';
+            insights.forEach(insight => {
+                html += `
+                    <div class="insight-card" style="border-left-color: ${insight.color}">
+                        <div class="insight-icon" style="color: ${insight.color}">
+                            <i class="fas fa-${insight.icon}"></i>
+                        </div>
+                        <div class="insight-content">
+                            <h3 class="insight-title">${insight.title}</h3>
+                            <p class="insight-description">${insight.description}</p>
+                        </div>
+                    </div>
+                `;
+            });
+
+            insightsContainer.innerHTML = html;
+        }
+
+        // Helper function
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

@@ -133,6 +133,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Initialize search link
             initializeSearchLink(user);
 
+            // Initialize stats link
+            initializeStatsLink(user);
+
             // Initialize notification bell
             if (window.notificationUI) {
                 window.notificationUI.initializeNotificationBell();
@@ -216,6 +219,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Show search link
         searchLink.style.display = 'flex';
+    };
+
+    // Initialize stats link
+    const initializeStatsLink = (user) => {
+        const statsLink = document.getElementById('stats-link');
+
+        if (!statsLink || !user) return;
+
+        // Show stats link
+        statsLink.style.display = 'flex';
     };
 
     onAuthStateChanged(auth, user => {
