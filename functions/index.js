@@ -47,17 +47,27 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
         let wordCount = 0;
         const BATCH_LIMIT = 490;
 
-        // Helper function to commit batch with retry logic
+        // Helper function to commit batch with retry logic and exponential backoff
         async function commitBatchWithRetry(batchToCommit, retries = 3) {
             try {
                 await batchToCommit.commit();
             } catch (error) {
                 if (retries > 0 && (error.code === 'deadline-exceeded' || error.code === 'unavailable')) {
-                    logger.warn(`Batch commit failed, retrying... (${retries} attempts left)`);
-                    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
+                    const delay = Math.pow(2, 3 - retries) * 1000; // Exponential backoff: 1s, 2s, 4s
+                    logger.warn(`Batch commit failed, retrying in ${delay}ms... (${retries} attempts left)`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
                     return commitBatchWithRetry(batchToCommit, retries - 1);
                 }
                 throw error;
+            }
+        }
+
+        // Helper function to safely commit current batch and create new one
+        async function commitIfNeeded() {
+            if (operationCount >= BATCH_LIMIT) {
+                await commitBatchWithRetry(batch);
+                batch = db.batch();
+                operationCount = 0;
             }
         }
 
@@ -79,22 +89,27 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
             WHERE ContentType = 6
         `;
 
-        await sqliteDb.each(bookQuery, [], (err, book) => {
+        await sqliteDb.each(bookQuery, [], async (err, book) => {
             if (err) {
-                throw err;
+                logger.error('Error processing book:', err);
+                return; // Continue processing other books
             }
             if (book && book.book_id) {
                 const sanitizedBookId = book.book_id.replace(/\//g, "__");
                 const bookRef = db.collection("users").doc(userId).collection("books").doc(sanitizedBookId);
-                batch.set(bookRef, book, { merge: true });
+
+                // Add default visibility for privacy controls
+                const bookData = {
+                    ...book,
+                    visibility: book.visibility || 'public',
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                };
+
+                batch.set(bookRef, bookData, { merge: true });
                 operationCount++;
                 bookCount++;
 
-                if (operationCount >= BATCH_LIMIT) {
-                    await commitBatchWithRetry(batch);
-                    batch = db.batch();
-                    operationCount = 0;
-                }
+                await commitIfNeeded();
             }
         });
 
@@ -115,9 +130,10 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
             ? `SELECT VolumeID AS book_id, Text AS text, Annotation AS annotation, DateCreated AS date_created, Type AS type, Color AS color FROM Bookmark WHERE Type = 'highlight' OR Type = 'note'`
             : `SELECT VolumeID AS book_id, Text AS text, Annotation AS annotation, DateCreated AS date_created, Type AS type FROM Bookmark WHERE Type = 'highlight' OR Type = 'note'`;
 
-        await sqliteDb.each(highlightQuery, [], (err, highlight) => {
+        await sqliteDb.each(highlightQuery, [], async (err, highlight) => {
             if (err) {
-                throw err;
+                logger.error('Error processing highlight:', err);
+                return; // Continue processing other highlights
             }
             if (highlight && highlight.book_id && highlight.text) {
                 if (!hasColorColumn) {
@@ -127,15 +143,23 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
                 const uniqueString = `${userId}-${sanitizedBookId}-${highlight.text}`;
                 const sanitizedHighlightId = crypto.createHash('sha1').update(uniqueString).digest('hex');
                 const highlightRef = db.collection("users").doc(userId).collection("highlights").doc(sanitizedHighlightId);
-                batch.set(highlightRef, { ...highlight, book_id: sanitizedBookId }, { merge: true });
+
+                // Add default values for new features
+                const highlightData = {
+                    ...highlight,
+                    book_id: sanitizedBookId,
+                    visibility: highlight.visibility || 'public',
+                    likeCount: highlight.likeCount || 0,
+                    commentCount: highlight.commentCount || 0,
+                    likes: highlight.likes || [],
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                };
+
+                batch.set(highlightRef, highlightData, { merge: true });
                 operationCount++;
                 highlightCount++;
 
-                if (operationCount >= BATCH_LIMIT) {
-                    await commitBatchWithRetry(batch);
-                    batch = db.batch();
-                    operationCount = 0;
-                }
+                await commitIfNeeded();
             }
         });
 
@@ -143,37 +167,40 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
         const wordListQuery = "SELECT Text, DateCreated, VolumeId FROM WordList;";
         const words = await sqliteDb.all(wordListQuery);
 
-        for (const word of words) {
-            if (word && word.Text && word.VolumeId) {
-                let bookTitle = "Unknown Book";
-                try {
-                    const url = new URL(word.VolumeId);
-                    const filename = path.basename(url.pathname);
-                    const decodedFilename = decodeURIComponent(filename);
-                    bookTitle = path.parse(decodedFilename).name;
-                } catch (e) {
-                    logger.warn(`Could not parse VolumeId for word: ${word.VolumeId}`);
+        // Process words in batches for better performance
+        const WORD_BATCH_SIZE = 100;
+        for (let i = 0; i < words.length; i += WORD_BATCH_SIZE) {
+            const wordBatch = words.slice(i, i + WORD_BATCH_SIZE);
+
+            await Promise.all(wordBatch.map(async (word) => {
+                if (word && word.Text && word.VolumeId) {
+                    let bookTitle = "Unknown Book";
+                    try {
+                        const url = new URL(word.VolumeId);
+                        const filename = path.basename(url.pathname);
+                        const decodedFilename = decodeURIComponent(filename);
+                        bookTitle = path.parse(decodedFilename).name;
+                    } catch (e) {
+                        logger.warn(`Could not parse VolumeId for word: ${word.VolumeId}`);
+                    }
+
+                    const uniqueString = `${userId}-${bookTitle}-${word.Text}`;
+                    const wordId = crypto.createHash('sha1').update(uniqueString).digest('hex');
+                    const wordRef = db.collection("users").doc(userId).collection("words").doc(wordId);
+
+                    batch.set(wordRef, {
+                        Text: word.Text,
+                        DateCreated: word.DateCreated,
+                        BookTitle: bookTitle,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+
+                    operationCount++;
+                    wordCount++;
                 }
+            }));
 
-                const uniqueString = `${userId}-${bookTitle}-${word.Text}`;
-                const wordId = crypto.createHash('sha1').update(uniqueString).digest('hex');
-                const wordRef = db.collection("users").doc(userId).collection("words").doc(wordId);
-                
-                batch.set(wordRef, {
-                    Text: word.Text,
-                    DateCreated: word.DateCreated,
-                    BookTitle: bookTitle,
-                }, { merge: true });
-
-                operationCount++;
-                wordCount++;
-
-                if (operationCount >= BATCH_LIMIT) {
-                    await batch.commit();
-                    batch = db.batch();
-                    operationCount = 0;
-                }
-            }
+            await commitIfNeeded();
         }
 
         logger.log(`Successfully processed and saved ${bookCount} books, ${highlightCount} highlights, and ${wordCount} words.`);

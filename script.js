@@ -3,6 +3,7 @@ import { collection, getDocs, query, where, collectionGroup, limit, doc, getDoc,
 import { auth, db, analytics } from "./firebase-init.js";
 import { loadProfile } from "./profile.js";
 import { logEvent, setUserProperties } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-analytics.js";
+import { performanceMonitor } from "./performance-monitor.js";
 const provider = new GoogleAuthProvider();
 
 

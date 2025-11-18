@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Recommendations - Koby</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .recommendations-container {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        .recommendations-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .recommendations-header h1 {
+            font-size: 2.5rem;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .recommendations-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+
+        .tab-button {
+            padding: 12px 24px;
+            border: 2px solid #4A90E2;
+            background: white;
+            color: #4A90E2;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .tab-button:hover {
+            background: #4A90E2;
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .tab-button.active {
+            background: #4A90E2;
+            color: white;
+        }
+
+        .recommendations-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 30px;
+            margin: 30px 0;
+        }
+
+        .book-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .book-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .book-cover {
+            width: 100%;
+            height: 320px;
+            object-fit: cover;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2rem;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .book-cover img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .book-info {
+            padding: 20px;
+        }
+
+        .book-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .book-authors {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 12px;
+        }
+
+        .book-reason {
+            font-size: 0.85rem;
+            color: #4A90E2;
+            font-style: italic;
+            margin-bottom: 12px;
+            padding: 8px;
+            background: #f0f7ff;
+            border-radius: 6px;
+        }
+
+        .book-rating {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 12px;
+        }
+
+        .stars {
+            color: #FFC107;
+        }
+
+        .book-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-wishlist {
+            flex: 1;
+            padding: 10px;
+            background: #4A90E2;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .btn-wishlist:hover {
+            background: #357ABD;
+        }
+
+        .btn-wishlist.added {
+            background: #28a745;
+        }
+
+        .btn-info {
+            padding: 10px;
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-info:hover {
+            background: #e9ecef;
+        }
+
+        .loading-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #4A90E2;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            color: #ddd;
+        }
+
+        @media (max-width: 768px) {
+            .recommendations-grid {
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            }
+
+            .recommendations-header h1 {
+                font-size: 2rem;
+            }
+
+            .tab-button {
+                padding: 10px 16px;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header></header>
+
+    <main>
+        <div class="recommendations-container">
+            <div class="recommendations-header">
+                <h1><i class="fas fa-book-reader"></i> Discover Your Next Read</h1>
+                <p>Personalized book recommendations based on your reading history</p>
+            </div>
+
+            <div class="recommendations-tabs">
+                <button class="tab-button active" data-tab="for-you">
+                    <i class="fas fa-magic"></i> For You
+                </button>
+                <button class="tab-button" data-tab="trending">
+                    <i class="fas fa-fire"></i> Trending
+                </button>
+                <button class="tab-button" data-tab="wishlist">
+                    <i class="fas fa-heart"></i> My Wishlist
+                </button>
+            </div>
+
+            <div id="recommendations-content">
+                <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Finding perfect books for you...</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script type="module">
+        import { auth } from './firebase-init.js';
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+        import { RecommendationEngine, WishlistManager } from './recommendation-engine.js';
+
+        let engine = null;
+        let wishlistManager = null;
+        let currentUserId = null;
+        let currentTab = 'for-you';
+        let wishlistIds = new Set();
+
+        // Load header
+        async function loadHeader() {
+            try {
+                const response = await fetch('/header.html');
+                const headerHTML = await response.text();
+                document.querySelector('header').innerHTML = headerHTML;
+            } catch (error) {
+                console.error('Error loading header:', error);
+            }
+        }
+
+        // Initialize
+        onAuthStateChanged(auth, async (user) => {
+            await loadHeader();
+
+            if (user) {
+                currentUserId = user.uid;
+                engine = new RecommendationEngine(currentUserId);
+                wishlistManager = new WishlistManager(currentUserId);
+
+                // Load wishlist IDs
+                await loadWishlistIds();
+
+                // Load initial recommendations
+                await loadRecommendations();
+            } else {
+                showError('Please sign in to get personalized recommendations.');
+            }
+        });
+
+        // Load wishlist IDs
+        async function loadWishlistIds() {
+            try {
+                const wishlist = await wishlistManager.getWishlist();
+                wishlistIds = new Set(wishlist.map(b => b.id));
+            } catch (error) {
+                console.error('Error loading wishlist:', error);
+            }
+        }
+
+        // Load recommendations
+        async function loadRecommendations() {
+            const content = document.getElementById('recommendations-content');
+            content.innerHTML = `
+                <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Finding perfect books for you...</p>
+                </div>
+            `;
+
+            try {
+                let books = [];
+
+                if (currentTab === 'for-you') {
+                    books = await engine.getRecommendations(12);
+                } else if (currentTab === 'trending') {
+                    books = await engine.getTrendingBooks(12);
+                } else if (currentTab === 'wishlist') {
+                    books = await wishlistManager.getWishlist();
+                }
+
+                if (books.length === 0) {
+                    content.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-book"></i>
+                            <h2>No recommendations yet</h2>
+                            <p>${currentTab === 'wishlist' ? 'Add books to your wishlist to see them here!' : 'Read more books to get personalized recommendations!'}</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                content.innerHTML = `<div class="recommendations-grid"></div>`;
+                const grid = content.querySelector('.recommendations-grid');
+
+                books.forEach(book => {
+                    grid.appendChild(createBookCard(book));
+                });
+
+            } catch (error) {
+                console.error('Error loading recommendations:', error);
+                showError('Failed to load recommendations. Please try again.');
+            }
+        }
+
+        // Create book card
+        function createBookCard(book) {
+            const card = document.createElement('div');
+            card.className = 'book-card';
+
+            const isInWishlist = wishlistIds.has(book.id);
+
+            card.innerHTML = `
+                <div class="book-cover">
+                    ${book.coverUrl ? `<img src="${book.coverUrl}" alt="${book.title}">` : `<div>${book.title}</div>`}
+                </div>
+                <div class="book-info">
+                    <div class="book-title">${book.title}</div>
+                    <div class="book-authors">${book.authors.join(', ')}</div>
+                    ${book.reason ? `<div class="book-reason"><i class="fas fa-lightbulb"></i> ${book.reason}</div>` : ''}
+                    ${book.averageRating ? `
+                        <div class="book-rating">
+                            <span class="stars">${'★'.repeat(Math.round(book.averageRating))}${'☆'.repeat(5 - Math.round(book.averageRating))}</span>
+                            <span>${book.averageRating.toFixed(1)} (${book.ratingsCount || 0})</span>
+                        </div>
+                    ` : ''}
+                    <div class="book-actions">
+                        <button class="btn-wishlist ${isInWishlist ? 'added' : ''}" data-book-id="${book.id}">
+                            <i class="fas ${isInWishlist ? 'fa-check' : 'fa-heart'}"></i>
+                            ${isInWishlist ? 'In Wishlist' : 'Add to Wishlist'}
+                        </button>
+                        ${book.infoLink ? `
+                            <button class="btn-info" onclick="window.open('${book.infoLink}', '_blank')">
+                                <i class="fas fa-info-circle"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+
+            // Add wishlist handler
+            const wishlistBtn = card.querySelector('.btn-wishlist');
+            wishlistBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                await toggleWishlist(book, wishlistBtn);
+            });
+
+            return card;
+        }
+
+        // Toggle wishlist
+        async function toggleWishlist(book, button) {
+            try {
+                const isInWishlist = wishlistIds.has(book.id);
+
+                if (isInWishlist) {
+                    await wishlistManager.removeFromWishlist(book.id);
+                    wishlistIds.delete(book.id);
+                    button.classList.remove('added');
+                    button.innerHTML = '<i class="fas fa-heart"></i> Add to Wishlist';
+
+                    if (currentTab === 'wishlist') {
+                        await loadRecommendations();
+                    }
+                } else {
+                    await wishlistManager.addToWishlist(book);
+                    wishlistIds.add(book.id);
+                    button.classList.add('added');
+                    button.innerHTML = '<i class="fas fa-check"></i> In Wishlist';
+                }
+            } catch (error) {
+                console.error('Error toggling wishlist:', error);
+                alert('Failed to update wishlist. Please try again.');
+            }
+        }
+
+        // Show error
+        function showError(message) {
+            const content = document.getElementById('recommendations-content');
+            content.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>${message}</p>
+                </div>
+            `;
+        }
+
+        // Tab switching
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', async () => {
+                // Update active state
+                document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+                button.classList.add('active');
+
+                // Update current tab
+                currentTab = button.dataset.tab;
+
+                // Load recommendations
+                await loadRecommendations();
+            });
+        });
+    </script>
+</body>
+</html>

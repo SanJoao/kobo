@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Connection Graph - Koby</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        .book-graph-container {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        .book-graph-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .book-graph-header h1 {
+            font-size: 2.5rem;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .book-graph-header p {
+            font-size: 1.1rem;
+            color: #666;
+        }
+
+        #book-graph-viz {
+            background: #f8f9fa;
+            border-radius: 12px;
+            border: 2px solid #e0e0e0;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin: 20px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 800px;
+        }
+
+        .graph-controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .graph-controls h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group label {
+            display: inline-block;
+            width: 150px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .control-group input[type="range"] {
+            width: 200px;
+            vertical-align: middle;
+        }
+
+        .control-group span {
+            margin-left: 10px;
+            color: #666;
+        }
+
+        .book-graph-loading {
+            text-align: center;
+            padding: 60px;
+        }
+
+        .book-graph-loading .spinner {
+            display: inline-block;
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #4A90E2;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .book-graph-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .stat-card .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #4A90E2;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .stat-label {
+            font-size: 1rem;
+            color: #666;
+        }
+
+        .book-graph-insights {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin: 20px 0;
+        }
+
+        .book-graph-insights h3 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        .insight-item {
+            padding: 10px;
+            margin: 10px 0;
+            background: #f8f9fa;
+            border-left: 4px solid #4A90E2;
+            border-radius: 4px;
+        }
+
+        .insight-item i {
+            margin-right: 10px;
+            color: #4A90E2;
+        }
+
+        .book-graph-error {
+            text-align: center;
+            padding: 40px;
+            color: #E94B4B;
+        }
+
+        .book-graph-error i {
+            font-size: 3rem;
+            margin-bottom: 20px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            #book-graph-viz {
+                min-height: 500px;
+            }
+
+            .book-graph-header h1 {
+                font-size: 2rem;
+            }
+
+            .control-group label {
+                display: block;
+                width: 100%;
+                margin-bottom: 5px;
+            }
+
+            .control-group input[type="range"] {
+                width: 100%;
+            }
+        }
+
+        /* SVG styles */
+        .nodes circle {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .nodes text {
+            pointer-events: none;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .links line {
+            transition: opacity 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <!-- Header will be loaded dynamically -->
+    </header>
+
+    <main>
+        <div class="book-graph-container">
+            <div class="book-graph-header">
+                <h1><i class="fas fa-project-diagram"></i> Your Reading Constellation</h1>
+                <p>Discover how your books connect through shared themes, authors, and ideas</p>
+            </div>
+
+            <div class="book-graph-stats" id="graph-stats" style="display: none;">
+                <div class="stat-card">
+                    <span class="stat-value" id="stat-books">0</span>
+                    <span class="stat-label">Books</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-value" id="stat-connections">0</span>
+                    <span class="stat-label">Connections</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-value" id="stat-strongest">-</span>
+                    <span class="stat-label">Strongest Link</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-value" id="stat-central">-</span>
+                    <span class="stat-label">Most Central Book</span>
+                </div>
+            </div>
+
+            <div class="graph-controls" id="graph-controls" style="display: none;">
+                <h3><i class="fas fa-sliders-h"></i> Graph Controls</h3>
+
+                <div class="control-group">
+                    <label>Min Connection Strength:</label>
+                    <input type="range" id="min-strength" min="0" max="1" step="0.1" value="0.1">
+                    <span id="min-strength-value">0.1</span>
+                </div>
+
+                <div class="control-group">
+                    <button class="btn-primary" id="refresh-graph">
+                        <i class="fas fa-sync-alt"></i> Refresh Graph
+                    </button>
+                    <button class="btn-secondary" id="export-graph">
+                        <i class="fas fa-download"></i> Export Image
+                    </button>
+                </div>
+            </div>
+
+            <div id="book-graph-viz">
+                <div class="book-graph-loading">
+                    <div class="spinner"></div>
+                    <p>Analyzing your reading connections...</p>
+                </div>
+            </div>
+
+            <div class="book-graph-insights" id="graph-insights" style="display: none;">
+                <h3><i class="fas fa-lightbulb"></i> Insights</h3>
+                <div id="insights-container"></div>
+            </div>
+        </div>
+    </main>
+
+    <script type="module">
+        import { auth } from './firebase-init.js';
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+        import { BookConnectionAnalyzer, BookGraphVisualizer } from './book-graph.js';
+
+        let analyzer = null;
+        let visualizer = null;
+        let currentUserId = null;
+
+        // Load header
+        async function loadHeader() {
+            try {
+                const response = await fetch('/header.html');
+                const headerHTML = await response.text();
+                document.querySelector('header').innerHTML = headerHTML;
+            } catch (error) {
+                console.error('Error loading header:', error);
+            }
+        }
+
+        // Initialize
+        onAuthStateChanged(auth, async (user) => {
+            await loadHeader();
+
+            if (user) {
+                currentUserId = user.uid;
+                await loadBookGraph();
+            } else {
+                showError('Please sign in to view your book connections.');
+            }
+        });
+
+        // Load and render book graph
+        async function loadBookGraph() {
+            try {
+                // Show loading
+                document.getElementById('book-graph-viz').innerHTML = `
+                    <div class="book-graph-loading">
+                        <div class="spinner"></div>
+                        <p>Analyzing your reading connections...</p>
+                    </div>
+                `;
+
+                // Analyze connections
+                analyzer = new BookConnectionAnalyzer(currentUserId);
+                const graphData = await analyzer.analyze();
+
+                // Check if we have enough data
+                if (graphData.nodes.length < 2) {
+                    showError('You need at least 2 books to visualize connections. Keep reading!');
+                    return;
+                }
+
+                // Show stats
+                displayStats(graphData);
+
+                // Show controls
+                document.getElementById('graph-controls').style.display = 'block';
+
+                // Render graph
+                visualizer = new BookGraphVisualizer('book-graph-viz', {
+                    width: 1000,
+                    height: 800
+                });
+                visualizer.render(graphData);
+
+                // Show insights
+                displayInsights(graphData);
+
+            } catch (error) {
+                console.error('Error loading book graph:', error);
+                showError('Failed to load book connections. Please try again.');
+            }
+        }
+
+        // Display stats
+        function displayStats(graphData) {
+            document.getElementById('stat-books').textContent = graphData.nodes.length;
+            document.getElementById('stat-connections').textContent = graphData.links.length;
+
+            // Find strongest connection
+            if (graphData.links.length > 0) {
+                const strongest = graphData.links.reduce((a, b) => a.value > b.value ? a : b);
+                const sourceBook = graphData.nodes.find(n => n.id === strongest.source.id || n.id === strongest.source);
+                const targetBook = graphData.nodes.find(n => n.id === strongest.target.id || n.id === strongest.target);
+                document.getElementById('stat-strongest').textContent =
+                    `${truncate(sourceBook?.title || 'Unknown', 15)} ↔ ${truncate(targetBook?.title || 'Unknown', 15)}`;
+            }
+
+            // Find most central book (most connections)
+            const connectionCounts = new Map();
+            graphData.links.forEach(link => {
+                const sourceId = link.source.id || link.source;
+                const targetId = link.target.id || link.target;
+                connectionCounts.set(sourceId, (connectionCounts.get(sourceId) || 0) + 1);
+                connectionCounts.set(targetId, (connectionCounts.get(targetId) || 0) + 1);
+            });
+
+            if (connectionCounts.size > 0) {
+                const mostCentral = Array.from(connectionCounts.entries())
+                    .reduce((a, b) => a[1] > b[1] ? a : b);
+                const centralBook = graphData.nodes.find(n => n.id === mostCentral[0]);
+                document.getElementById('stat-central').textContent = truncate(centralBook?.title || 'Unknown', 20);
+            }
+
+            document.getElementById('graph-stats').style.display = 'grid';
+        }
+
+        // Display insights
+        function displayInsights(graphData) {
+            const insights = [];
+
+            // Analyze clusters
+            if (graphData.links.length > graphData.nodes.length) {
+                insights.push({
+                    icon: 'fa-network-wired',
+                    text: 'Your books form a highly connected network, suggesting diverse but related reading interests!'
+                });
+            }
+
+            // Check for isolated books
+            const connectedBooks = new Set();
+            graphData.links.forEach(link => {
+                connectedBooks.add(link.source.id || link.source);
+                connectedBooks.add(link.target.id || link.target);
+            });
+            const isolated = graphData.nodes.length - connectedBooks.size;
+            if (isolated > 0) {
+                insights.push({
+                    icon: 'fa-book',
+                    text: `${isolated} book(s) have unique themes that don't connect to others yet.`
+                });
+            }
+
+            // Average connection strength
+            if (graphData.links.length > 0) {
+                const avgStrength = graphData.links.reduce((sum, l) => sum + l.value, 0) / graphData.links.length;
+                if (avgStrength > 0.5) {
+                    insights.push({
+                        icon: 'fa-link',
+                        text: 'Strong connections between books suggest focused reading in specific themes.'
+                    });
+                } else {
+                    insights.push({
+                        icon: 'fa-arrows-alt',
+                        text: 'Diverse connections suggest broad reading across different topics.'
+                    });
+                }
+            }
+
+            const container = document.getElementById('insights-container');
+            container.innerHTML = insights.map(insight => `
+                <div class="insight-item">
+                    <i class="fas ${insight.icon}"></i>
+                    ${insight.text}
+                </div>
+            `).join('');
+
+            document.getElementById('graph-insights').style.display = 'block';
+        }
+
+        // Show error
+        function showError(message) {
+            document.getElementById('book-graph-viz').innerHTML = `
+                <div class="book-graph-error">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>${message}</p>
+                </div>
+            `;
+        }
+
+        // Truncate text
+        function truncate(text, maxLength) {
+            if (!text) return '';
+            return text.length > maxLength ? text.slice(0, maxLength) + '...' : text;
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            // Min strength slider
+            const minStrengthSlider = document.getElementById('min-strength');
+            const minStrengthValue = document.getElementById('min-strength-value');
+
+            if (minStrengthSlider) {
+                minStrengthSlider.addEventListener('input', (e) => {
+                    minStrengthValue.textContent = e.target.value;
+                });
+            }
+
+            // Refresh button
+            document.getElementById('refresh-graph')?.addEventListener('click', () => {
+                if (visualizer) {
+                    visualizer.destroy();
+                }
+                loadBookGraph();
+            });
+
+            // Export button
+            document.getElementById('export-graph')?.addEventListener('click', () => {
+                const svg = document.querySelector('#book-graph-viz svg');
+                if (!svg) return;
+
+                const serializer = new XMLSerializer();
+                const svgString = serializer.serializeToString(svg);
+                const blob = new Blob([svgString], { type: 'image/svg+xml' });
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'book-connections.svg';
+                a.click();
+
+                URL.revokeObjectURL(url);
+            });
+        });
+
+        // Listen for book node clicks
+        document.addEventListener('bookNodeClick', (event) => {
+            const book = event.detail.book;
+            console.log('Navigate to book:', book);
+            // Could navigate to book detail page or show modal
+        });
+    </script>
+</body>
+</html>
