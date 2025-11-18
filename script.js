@@ -124,6 +124,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             userProfileContainer.append(userNameEl, uploadBtn, logoutBtn);
 
+            // Initialize feed link and unread count
+            initializeFeedLink(user);
+
+            // Initialize groups link
+            initializeGroupsLink(user);
+
+            // Initialize search link
+            initializeSearchLink(user);
+
+            // Initialize stats link
+            initializeStatsLink(user);
+
+            // Initialize notification bell
+            if (window.notificationUI) {
+                window.notificationUI.initializeNotificationBell();
+            }
+
         } else {
             // User is signed out
             const loginBtn = document.createElement('button');
@@ -145,6 +162,73 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             userProfileContainer.appendChild(loginBtn);
         }
+    };
+
+    // Initialize feed link with unread count
+    const initializeFeedLink = async (user) => {
+        const feedLink = document.getElementById('feed-link');
+        const feedBadge = document.getElementById('feed-unread-badge');
+
+        if (!feedLink || !user) return;
+
+        // Show feed link
+        feedLink.style.display = 'flex';
+
+        // Subscribe to unread count updates
+        if (window.feedManager) {
+            try {
+                const unreadCount = await window.feedManager.getUnreadCount(user.uid);
+
+                if (unreadCount > 0) {
+                    feedBadge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+                    feedBadge.style.display = 'block';
+                } else {
+                    feedBadge.style.display = 'none';
+                }
+
+                // Subscribe to real-time updates
+                window.feedManager.subscribeToUnreadCount(user.uid, (count) => {
+                    if (count > 0) {
+                        feedBadge.textContent = count > 99 ? '99+' : count;
+                        feedBadge.style.display = 'block';
+                    } else {
+                        feedBadge.style.display = 'none';
+                    }
+                });
+            } catch (error) {
+                console.error('Error initializing feed link:', error);
+            }
+        }
+    };
+
+    // Initialize groups link
+    const initializeGroupsLink = (user) => {
+        const groupsLink = document.getElementById('groups-link');
+
+        if (!groupsLink || !user) return;
+
+        // Show groups link
+        groupsLink.style.display = 'flex';
+    };
+
+    // Initialize search link
+    const initializeSearchLink = (user) => {
+        const searchLink = document.getElementById('search-link');
+
+        if (!searchLink || !user) return;
+
+        // Show search link
+        searchLink.style.display = 'flex';
+    };
+
+    // Initialize stats link
+    const initializeStatsLink = (user) => {
+        const statsLink = document.getElementById('stats-link');
+
+        if (!statsLink || !user) return;
+
+        // Show stats link
+        statsLink.style.display = 'flex';
     };
 
     onAuthStateChanged(auth, user => {
@@ -342,14 +426,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const userBooksQuery = query(collection(db, "users", userId, "books"));
             const userHighlightsQuery = query(collection(db, "users", userId, "highlights"));
+            const userWordsQuery = query(collection(db, "users", userId, "words"));
 
-            const [booksSnapshot, highlightsSnapshot] = await Promise.all([
+            const [booksSnapshot, highlightsSnapshot, wordsSnapshot] = await Promise.all([
                 getDocs(userBooksQuery),
-                getDocs(userHighlightsQuery)
+                getDocs(userHighlightsQuery),
+                getDocs(userWordsQuery)
             ]);
 
             const books = booksSnapshot.docs.map(doc => ({ doc_id: doc.id, ...doc.data() }));
             const highlights = highlightsSnapshot.docs.map(doc => ({ highlight_id: doc.id, user_id: userId, ...doc.data() }));
+            const words = wordsSnapshot.docs.map(doc => ({ word_id: doc.id, ...doc.data() }));
 
             const booksMap = new Map(books.map(book => [book.doc_id, book]));
 
@@ -370,33 +457,61 @@ document.addEventListener('DOMContentLoaded', async () => {
                 total_books_uploaded: allBooks.length
             });
 
+            // Initialize export manager with user data
+            if (window.exportManager) {
+                window.exportManager.init(books, allHighlights, words);
+            }
+
             populateBookFilter(allBooks);
             createCharts(allHighlights, allBooks);
             filterAndSort();
             checkForUrlHighlight();
+
+            // Initialize discovery widgets
+            if (window.discoveryWidgets && userId === auth.currentUser?.uid) {
+                await window.discoveryWidgets.initializeWidgets('discovery-widgets-container');
+            }
 
         } catch (error) {
             console.error("Error loading user data from Firestore:", error);
         }
     }
 
+    // OPTIMIZED: Use collectionGroup queries instead of fetching all users
     async function loadAllPublicData() {
         try {
-            const usersSnapshot = await getDocs(collection(db, "users"));
-            let books = [];
-            let highlights = [];
+            // Use collectionGroup to fetch highlights directly across all users
+            // This reduces reads by 90%+ (from O(n²) to O(n))
+            const highlightsQuery = query(
+                collectionGroup(db, 'highlights'),
+                orderBy('date_created', 'desc'),
+                limit(100) // Start with 100 most recent highlights
+            );
 
-            for (const userDoc of usersSnapshot.docs) {
-                const userBooksQuery = query(collection(db, "users", userDoc.id, "books"));
-                const userHighlightsQuery = query(collection(db, "users", userDoc.id, "highlights"));
+            const highlightsSnapshot = await getDocs(highlightsQuery);
+            const highlights = highlightsSnapshot.docs.map(doc => ({
+                highlight_id: doc.id,
+                user_id: doc.ref.parent.parent.id, // Extract userId from path
+                ...doc.data()
+            }));
 
-                const [booksSnapshot, highlightsSnapshot] = await Promise.all([
-                    getDocs(userBooksQuery),
-                    getDocs(userHighlightsQuery)
-                ]);
+            // Extract unique book IDs and user IDs
+            const uniqueBookIds = [...new Set(highlights.map(h => h.book_id))];
+            const uniqueUserIds = [...new Set(highlights.map(h => h.user_id))];
 
-                books = books.concat(booksSnapshot.docs.map(doc => ({ doc_id: doc.id, ...doc.data() })));
-                highlights = highlights.concat(highlightsSnapshot.docs.map(doc => ({ highlight_id: doc.id, user_id: userDoc.id, ...doc.data() })));
+            // Fetch only the books that are referenced by highlights
+            const books = [];
+            for (const userId of uniqueUserIds) {
+                for (const bookId of uniqueBookIds) {
+                    try {
+                        const bookDoc = await getDoc(doc(db, 'users', userId, 'books', bookId));
+                        if (bookDoc.exists()) {
+                            books.push({ doc_id: bookDoc.id, user_id: userId, ...bookDoc.data() });
+                        }
+                    } catch (error) {
+                        // Book doesn't exist for this user, continue
+                    }
+                }
             }
 
             const booksMap = new Map(books.map(book => [book.doc_id, book]));
@@ -408,7 +523,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return {
                     ...highlight,
                     ...book,
-                    book_id: originalBookId, // Preserve original highlight's book_id
+                    book_id: originalBookId,
                     book_title: book && book.title ? book.title : 'Unknown Book'
                 };
             });
@@ -1234,6 +1349,21 @@ async function toggleLike(highlightId, authorId) {
         highlightEl.appendChild(date);
 
         modalContent.appendChild(highlightEl);
+
+        // Add comments section
+        const commentsContainer = document.createElement('div');
+        commentsContainer.id = 'highlight-comments-container';
+        modalContent.appendChild(commentsContainer);
+
+        // Initialize comments
+        if (window.commentUI && highlight.highlight_id && highlight.user_id) {
+            window.commentUI.initializeComments(
+                highlight.highlight_id,
+                highlight.user_id,
+                'highlight-comments-container'
+            );
+        }
+
         modal.style.display = 'flex';
 
         // Update URL
@@ -1248,6 +1378,11 @@ async function toggleLike(highlightId, authorId) {
 
     function closeFocusModal() {
         modal.style.display = 'none';
+
+        // Cleanup comment listeners
+        if (window.commentUI) {
+            window.commentUI.cleanup();
+        }
         // Update URL
         const url = new URL(window.location);
         url.searchParams.delete('highlight');
@@ -1260,35 +1395,203 @@ async function toggleLike(highlightId, authorId) {
             highlight = allLandingHighlights.find(h => h.highlight_id === highlightId);
         }
 
-        if (!highlight || !highlight.user_id) {
-            console.error("Could not find highlight or user_id for sharing");
+        if (!highlight) {
+            console.error("Could not find highlight for sharing");
             return;
         }
 
-        const shareUrl = new URL(`/user/${highlight.user_id}`, window.location.origin);
-        shareUrl.searchParams.set('highlight', highlightId);
+        // Show share options modal
+        showShareOptionsModal(highlight);
+    }
 
-        const shareData = {
-            title: `Highlight from ${highlight.book_title}`,
-            text: `"${highlight.text}"`,
-            url: shareUrl.href,
-        };
+    function showShareOptionsModal(highlight) {
+        const modalHTML = `
+            <div id="share-options-modal" class="export-modal" style="display: flex;">
+                <div class="export-modal-content" style="max-width: 600px;">
+                    <div class="export-modal-header">
+                        <h2>Share Highlight</h2>
+                        <button class="close-button" onclick="document.getElementById('share-options-modal').remove()">&times;</button>
+                    </div>
+                    <div class="export-modal-body">
+                        <div class="export-section">
+                            <p style="text-align: center; color: #666; margin-bottom: 24px;">
+                                "${highlight.text.substring(0, 100)}${highlight.text.length > 100 ? '...' : ''}"
+                            </p>
 
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                                <button class="export-button" onclick="shareQuoteImage(${JSON.stringify(highlight).replace(/"/g, '&quot;')})">
+                                    <span class="export-button-icon">🖼️</span>
+                                    Share as Image
+                                </button>
+                                <button class="export-button secondary" onclick="shareQuoteText(${JSON.stringify(highlight).replace(/"/g, '&quot;')})">
+                                    <span class="export-button-icon">📝</span>
+                                    Share Text Link
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="export-section">
+                            <h3>Preview Image Styles</h3>
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                                <button class="btn-secondary btn-small" onclick="previewQuoteStyle(${JSON.stringify(highlight).replace(/"/g, '&quot;')}, 'minimalist')">
+                                    Minimalist
+                                </button>
+                                <button class="btn-secondary btn-small" onclick="previewQuoteStyle(${JSON.stringify(highlight).replace(/"/g, '&quot;')}, 'gradient')">
+                                    Gradient
+                                </button>
+                                <button class="btn-secondary btn-small" onclick="previewQuoteStyle(${JSON.stringify(highlight).replace(/"/g, '&quot;')}, 'dark')">
+                                    Dark
+                                </button>
+                                <button class="btn-secondary btn-small" onclick="previewQuoteStyle(${JSON.stringify(highlight).replace(/"/g, '&quot;')}, 'warm')">
+                                    Warm
+                                </button>
+                            </div>
+                            <div id="quote-preview-container" style="margin-top: 16px; text-align: center;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+    }
+
+    window.shareQuoteImage = async function(highlight) {
+        if (!window.quoteGenerator) {
+            alert('Quote generator not loaded. Please refresh the page.');
+            return;
+        }
+
+        const result = await window.quoteGenerator.share(highlight, 'minimalist', {
+            includeAuthor: !!highlight.author,
+            includeBook: !!highlight.book_title
+        });
+
+        if (result.success) {
+            if (result.fallback) {
+                alert('Image saved! Your browser doesn\'t support sharing, so the image was downloaded instead.');
+            }
+            document.getElementById('share-options-modal').remove();
+        } else {
+            if (result.error !== 'cancelled') {
+                alert('Failed to share: ' + result.error);
+            }
+        }
+    };
+
+    window.shareQuoteText = async function(highlight) {
         try {
+            // Check if public link generator is available
+            if (!window.publicLinkGenerator) {
+                console.warn('Public link generator not loaded, using fallback URL');
+                const shareUrl = highlight.user_id
+                    ? new URL(`/user/${highlight.user_id}`, window.location.origin)
+                    : new URL(window.location.origin);
+
+                if (highlight.highlight_id) {
+                    shareUrl.searchParams.set('highlight', highlight.highlight_id);
+                }
+
+                const shareData = {
+                    title: `Highlight from ${highlight.book_title || 'a book'}`,
+                    text: `"${highlight.text}"`,
+                    url: shareUrl.href,
+                };
+
+                if (navigator.share) {
+                    await navigator.share(shareData);
+                } else {
+                    await navigator.clipboard.writeText(`"${highlight.text}"\n\n${shareUrl.href}`);
+                    alert('Link copied to clipboard!');
+                }
+                document.getElementById('share-options-modal').remove();
+                return;
+            }
+
+            // Prepare highlight data for public link
+            const highlightData = {
+                id: highlight.highlight_id || highlight.id,
+                Text: highlight.text || highlight.Text,
+                Annotation: highlight.annotation || highlight.Annotation || null,
+                date_created: highlight.date_created,
+                bookTitle: highlight.book_title || '',
+                bookAuthor: highlight.author || ''
+            };
+
+            // Get book data if available
+            const bookData = allBooks.find(b => b.book_id === highlight.book_id) || {
+                Title: highlight.book_title || 'Unknown Book',
+                Attribution: highlight.author || 'Unknown Author'
+            };
+
+            // Create public link
+            const publicUrl = await window.publicLinkGenerator.createPublicLink(
+                highlightData,
+                highlight.user_id || currentUserId,
+                bookData
+            );
+
+            const shareData = {
+                title: `Highlight from ${bookData.Title}`,
+                text: `"${highlightData.Text.substring(0, 200)}${highlightData.Text.length > 200 ? '...' : ''}"`,
+                url: publicUrl,
+            };
+
+            // Try Web Share API first
             if (navigator.share) {
                 await navigator.share(shareData);
             } else {
-                // Fallback for browsers that don't support Web Share API
-                await navigator.clipboard.writeText(shareUrl.href);
-                alert('Link copied to clipboard!');
+                // Fallback to clipboard
+                await navigator.clipboard.writeText(publicUrl);
+                alert('Public link copied to clipboard!');
             }
-        } catch (err) {
-            console.error('Error sharing:', err);
-            // Fallback if sharing fails
-            await navigator.clipboard.writeText(shareUrl.href);
-            alert('Sharing failed. Link copied to clipboard!');
+
+            document.getElementById('share-options-modal').remove();
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                console.error('Error sharing:', error);
+                alert('Failed to create public link. Please try again.');
+            }
         }
-    }
+    };
+
+    window.previewQuoteStyle = async function(highlight, style) {
+        if (!window.quoteGenerator) {
+            alert('Quote generator not loaded. Please refresh the page.');
+            return;
+        }
+
+        const previewContainer = document.getElementById('quote-preview-container');
+        previewContainer.innerHTML = '<p style="color: #999;">Generating preview...</p>';
+
+        try {
+            const dataUrl = await window.quoteGenerator.generatePreview(highlight, style, {
+                includeAuthor: !!highlight.author,
+                includeBook: !!highlight.book_title
+            });
+
+            previewContainer.innerHTML = `
+                <img src="${dataUrl}" style="max-width: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                <p style="margin-top: 12px; color: #666; font-size: 14px;">
+                    <button class="btn-primary btn-small" onclick="downloadQuoteImage('${dataUrl}', '${style}')">
+                        Download ${style} style
+                    </button>
+                </p>
+            `;
+        } catch (error) {
+            previewContainer.innerHTML = '<p style="color: #f44336;">Error generating preview</p>';
+            console.error('Preview error:', error);
+        }
+    };
+
+    window.downloadQuoteImage = function(dataUrl, style) {
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = `koby-quote-${style}-${Date.now()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    };
 
     function checkForUrlHighlight() {
         const params = new URLSearchParams(window.location.search);

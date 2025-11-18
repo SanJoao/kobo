@@ -1,4 +1,7 @@
 const { onObjectFinalized } = require("firebase-functions/v2/storage");
+const { onCall } = require("firebase-functions/v2/https");
+const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { getStorage } = require("firebase-admin/storage");
 const { getFirestore } = require("firebase-admin/firestore");
 const admin = require("firebase-admin");
@@ -44,6 +47,20 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
         let wordCount = 0;
         const BATCH_LIMIT = 490;
 
+        // Helper function to commit batch with retry logic
+        async function commitBatchWithRetry(batchToCommit, retries = 3) {
+            try {
+                await batchToCommit.commit();
+            } catch (error) {
+                if (retries > 0 && (error.code === 'deadline-exceeded' || error.code === 'unavailable')) {
+                    logger.warn(`Batch commit failed, retrying... (${retries} attempts left)`);
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
+                    return commitBatchWithRetry(batchToCommit, retries - 1);
+                }
+                throw error;
+            }
+        }
+
         // 1. Process books in a streaming fashion
         const bookQuery = `
             SELECT
@@ -74,7 +91,7 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
                 bookCount++;
 
                 if (operationCount >= BATCH_LIMIT) {
-                    batch.commit();
+                    await commitBatchWithRetry(batch);
                     batch = db.batch();
                     operationCount = 0;
                 }
@@ -115,7 +132,7 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
                 highlightCount++;
 
                 if (operationCount >= BATCH_LIMIT) {
-                    batch.commit();
+                    await commitBatchWithRetry(batch);
                     batch = db.batch();
                     operationCount = 0;
                 }
@@ -163,7 +180,7 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
 
         // Commit any remaining operations from all steps
         if (operationCount > 0) {
-            await batch.commit();
+            await commitBatchWithRetry(batch);
         }
 
         // Ensure the user document exists by setting a field on it.
@@ -189,3 +206,1530 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
         fs.unlinkSync(tempFilePath);
     }
 });
+
+/**
+ * Follow a user
+ * Creates follower/following relationships and updates counts
+ */
+exports.followUser = onCall(async (request) => {
+    const { auth, data } = request;
+
+    // Check authentication
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const followerId = auth.uid;
+    const followingId = data.userId;
+
+    if (!followingId) {
+        throw new Error('userId is required');
+    }
+
+    if (followerId === followingId) {
+        throw new Error('Cannot follow yourself');
+    }
+
+    const db = getFirestore();
+
+    try {
+        // Check if already following
+        const followerDoc = await db
+            .collection('users')
+            .doc(followingId)
+            .collection('followers')
+            .doc(followerId)
+            .get();
+
+        if (followerDoc.exists) {
+            throw new Error('Already following this user');
+        }
+
+        // Use batch for atomic operations
+        const batch = db.batch();
+
+        // Add to following's followers subcollection
+        const followerRef = db
+            .collection('users')
+            .doc(followingId)
+            .collection('followers')
+            .doc(followerId);
+
+        batch.set(followerRef, {
+            userId: followerId,
+            followedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Add to follower's following subcollection
+        const followingRef = db
+            .collection('users')
+            .doc(followerId)
+            .collection('following')
+            .doc(followingId);
+
+        batch.set(followingRef, {
+            userId: followingId,
+            followedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Increment follower count on user being followed
+        const followingUserRef = db.collection('users').doc(followingId);
+        batch.set(followingUserRef, {
+            followerCount: admin.firestore.FieldValue.increment(1)
+        }, { merge: true });
+
+        // Increment following count on follower
+        const followerUserRef = db.collection('users').doc(followerId);
+        batch.set(followerUserRef, {
+            followingCount: admin.firestore.FieldValue.increment(1)
+        }, { merge: true });
+
+        await batch.commit();
+
+        logger.log(`User ${followerId} followed ${followingId}`);
+
+        return {
+            success: true,
+            message: 'Successfully followed user'
+        };
+
+    } catch (error) {
+        logger.error('Error following user:', error);
+        throw new Error(error.message || 'Failed to follow user');
+    }
+});
+
+/**
+ * Unfollow a user
+ * Removes follower/following relationships and updates counts
+ */
+exports.unfollowUser = onCall(async (request) => {
+    const { auth, data } = request;
+
+    // Check authentication
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const followerId = auth.uid;
+    const followingId = data.userId;
+
+    if (!followingId) {
+        throw new Error('userId is required');
+    }
+
+    const db = getFirestore();
+
+    try {
+        // Check if actually following
+        const followerDoc = await db
+            .collection('users')
+            .doc(followingId)
+            .collection('followers')
+            .doc(followerId)
+            .get();
+
+        if (!followerDoc.exists) {
+            throw new Error('Not following this user');
+        }
+
+        // Use batch for atomic operations
+        const batch = db.batch();
+
+        // Remove from following's followers subcollection
+        const followerRef = db
+            .collection('users')
+            .doc(followingId)
+            .collection('followers')
+            .doc(followerId);
+
+        batch.delete(followerRef);
+
+        // Remove from follower's following subcollection
+        const followingRef = db
+            .collection('users')
+            .doc(followerId)
+            .collection('following')
+            .doc(followingId);
+
+        batch.delete(followingRef);
+
+        // Decrement follower count on user being unfollowed
+        const followingUserRef = db.collection('users').doc(followingId);
+        batch.set(followingUserRef, {
+            followerCount: admin.firestore.FieldValue.increment(-1)
+        }, { merge: true });
+
+        // Decrement following count on unfollower
+        const followerUserRef = db.collection('users').doc(followerId);
+        batch.set(followerUserRef, {
+            followingCount: admin.firestore.FieldValue.increment(-1)
+        }, { merge: true });
+
+        await batch.commit();
+
+        logger.log(`User ${followerId} unfollowed ${followingId}`);
+
+        return {
+            success: true,
+            message: 'Successfully unfollowed user'
+        };
+
+    } catch (error) {
+        logger.error('Error unfollowing user:', error);
+        throw new Error(error.message || 'Failed to unfollow user');
+    }
+});
+
+/**
+ * Activity Feed: Fan out new highlights to followers
+ * Triggered when a new highlight is created
+ */
+exports.onCreateHighlight = onDocumentCreated(
+    "users/{userId}/highlights/{highlightId}",
+    async (event) => {
+        const userId = event.params.userId;
+        const highlightId = event.params.highlightId;
+        const highlightData = event.data.data();
+
+        const db = getFirestore();
+
+        try {
+            // Get user info (actor)
+            const userDoc = await db.collection('users').doc(userId).get();
+            if (!userDoc.exists) {
+                logger.warn(`User ${userId} not found`);
+                return;
+            }
+
+            const userData = userDoc.data();
+
+            // Get book info
+            let bookTitle = 'Unknown Book';
+            let bookAuthor = 'Unknown Author';
+
+            if (highlightData.book_id) {
+                const bookDoc = await db
+                    .collection('users')
+                    .doc(userId)
+                    .collection('books')
+                    .doc(highlightData.book_id)
+                    .get();
+
+                if (bookDoc.exists) {
+                    const bookData = bookDoc.data();
+                    bookTitle = bookData.title || bookTitle;
+
+                    // Extract author from book_id or title
+                    if (highlightData.book_id.includes('/')) {
+                        const parts = highlightData.book_id.split('/');
+                        if (parts.length > 1) {
+                            bookAuthor = parts[0];
+                        }
+                    }
+                }
+            }
+
+            // Get all followers
+            const followersSnapshot = await db
+                .collection('users')
+                .doc(userId)
+                .collection('followers')
+                .get();
+
+            if (followersSnapshot.empty) {
+                logger.log(`User ${userId} has no followers, skipping feed fanout`);
+                return;
+            }
+
+            const batch = db.batch();
+            let batchCount = 0;
+            const BATCH_LIMIT = 490;
+
+            // Create feed item for each follower
+            for (const followerDoc of followersSnapshot.docs) {
+                const followerId = followerDoc.data().userId;
+
+                const feedItemRef = db
+                    .collection('users')
+                    .doc(followerId)
+                    .collection('feed')
+                    .doc(); // Auto-generate ID
+
+                const feedItem = {
+                    actorId: userId,
+                    actorName: userData.displayName || 'Anonymous',
+                    actorPhotoURL: userData.photoURL || null,
+                    action: 'highlight',
+                    highlightId: highlightId,
+                    highlightText: highlightData.text || '',
+                    annotation: highlightData.annotation || null,
+                    bookId: highlightData.book_id || null,
+                    bookTitle: bookTitle,
+                    bookAuthor: bookAuthor,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    read: false
+                };
+
+                batch.set(feedItemRef, feedItem);
+                batchCount++;
+
+                if (batchCount >= BATCH_LIMIT) {
+                    await batch.commit();
+                    batchCount = 0;
+                }
+            }
+
+            // Commit remaining operations
+            if (batchCount > 0) {
+                await batch.commit();
+            }
+
+            logger.log(`Fanned out highlight ${highlightId} to ${followersSnapshot.size} followers`);
+
+        } catch (error) {
+            logger.error('Error fanning out highlight:', error);
+        }
+    }
+);
+
+/**
+ * Activity Feed: Fan out finished books to followers
+ * Triggered when a book is updated to 100% read
+ */
+exports.onFinishBook = onDocumentUpdated(
+    "users/{userId}/books/{bookId}",
+    async (event) => {
+        const userId = event.params.userId;
+        const bookId = event.params.bookId;
+        const beforeData = event.data.before.data();
+        const afterData = event.data.after.data();
+
+        const db = getFirestore();
+
+        try {
+            // Check if book was just finished (percent_read reached 100)
+            const wasFinished = beforeData.percent_read >= 100;
+            const isFinished = afterData.percent_read >= 100;
+
+            if (wasFinished || !isFinished) {
+                // Book was already finished or not finished yet
+                return;
+            }
+
+            // Get user info (actor)
+            const userDoc = await db.collection('users').doc(userId).get();
+            if (!userDoc.exists) {
+                logger.warn(`User ${userId} not found`);
+                return;
+            }
+
+            const userData = userDoc.data();
+
+            // Extract book info
+            const bookTitle = afterData.title || 'Unknown Book';
+            let bookAuthor = 'Unknown Author';
+
+            if (bookId.includes('/')) {
+                const parts = bookId.split('/');
+                if (parts.length > 1) {
+                    bookAuthor = parts[0];
+                }
+            }
+
+            // Get all followers
+            const followersSnapshot = await db
+                .collection('users')
+                .doc(userId)
+                .collection('followers')
+                .get();
+
+            if (followersSnapshot.empty) {
+                logger.log(`User ${userId} has no followers, skipping feed fanout`);
+                return;
+            }
+
+            const batch = db.batch();
+            let batchCount = 0;
+            const BATCH_LIMIT = 490;
+
+            // Create feed item for each follower
+            for (const followerDoc of followersSnapshot.docs) {
+                const followerId = followerDoc.data().userId;
+
+                const feedItemRef = db
+                    .collection('users')
+                    .doc(followerId)
+                    .collection('feed')
+                    .doc(); // Auto-generate ID
+
+                const feedItem = {
+                    actorId: userId,
+                    actorName: userData.displayName || 'Anonymous',
+                    actorPhotoURL: userData.photoURL || null,
+                    action: 'finished_book',
+                    bookId: bookId,
+                    bookTitle: bookTitle,
+                    bookAuthor: bookAuthor,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    read: false
+                };
+
+                batch.set(feedItemRef, feedItem);
+                batchCount++;
+
+                if (batchCount >= BATCH_LIMIT) {
+                    await batch.commit();
+                    batchCount = 0;
+                }
+            }
+
+            // Commit remaining operations
+            if (batchCount > 0) {
+                await batch.commit();
+            }
+
+            logger.log(`Fanned out finished book ${bookId} to ${followersSnapshot.size} followers`);
+
+        } catch (error) {
+            logger.error('Error fanning out finished book:', error);
+        }
+    }
+);
+
+/**
+ * Cleanup old feed items
+ * Runs daily at midnight UTC
+ * Removes items older than 30 days and limits to 100 items per user
+ */
+exports.cleanupFeeds = onSchedule("0 0 * * *", async (event) => {
+    const db = getFirestore();
+
+    try {
+        // Get all users
+        const usersSnapshot = await db.collection('users').get();
+
+        logger.log(`Cleaning up feeds for ${usersSnapshot.size} users`);
+
+        for (const userDoc of usersSnapshot.docs) {
+            const userId = userDoc.id;
+
+            // Get feed items older than 30 days
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+            const oldItemsSnapshot = await db
+                .collection('users')
+                .doc(userId)
+                .collection('feed')
+                .where('timestamp', '<', thirtyDaysAgo)
+                .get();
+
+            // Delete old items
+            const batch = db.batch();
+            let batchCount = 0;
+            const BATCH_LIMIT = 490;
+
+            for (const itemDoc of oldItemsSnapshot.docs) {
+                batch.delete(itemDoc.ref);
+                batchCount++;
+
+                if (batchCount >= BATCH_LIMIT) {
+                    await batch.commit();
+                    batchCount = 0;
+                }
+            }
+
+            if (batchCount > 0) {
+                await batch.commit();
+                batchCount = 0;
+            }
+
+            // Limit to 100 items (keep most recent)
+            const allItemsSnapshot = await db
+                .collection('users')
+                .doc(userId)
+                .collection('feed')
+                .orderBy('timestamp', 'desc')
+                .get();
+
+            if (allItemsSnapshot.size > 100) {
+                const itemsToDelete = allItemsSnapshot.docs.slice(100);
+
+                for (const itemDoc of itemsToDelete) {
+                    batch.delete(itemDoc.ref);
+                    batchCount++;
+
+                    if (batchCount >= BATCH_LIMIT) {
+                        await batch.commit();
+                        batchCount = 0;
+                    }
+                }
+
+                if (batchCount > 0) {
+                    await batch.commit();
+                }
+
+                logger.log(`Deleted ${itemsToDelete.length} excess feed items for user ${userId}`);
+            }
+        }
+
+        logger.log('Feed cleanup completed successfully');
+
+    } catch (error) {
+        logger.error('Error cleaning up feeds:', error);
+    }
+});
+
+/**
+ * Comments System
+ * CRUD operations for highlight comments
+ */
+
+/**
+ * Create a comment on a highlight
+ */
+exports.createComment = onCall(async (request) => {
+    const { auth, data } = request;
+
+    // Check authentication
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const { highlightId, highlightOwnerId, text, parentId } = data;
+
+    if (!highlightId || !text || !highlightOwnerId) {
+        throw new Error('highlightId, highlightOwnerId, and text are required');
+    }
+
+    if (text.trim().length === 0) {
+        throw new Error('Comment text cannot be empty');
+    }
+
+    if (text.length > 1000) {
+        throw new Error('Comment text cannot exceed 1000 characters');
+    }
+
+    const db = getFirestore();
+
+    try {
+        // Get user info
+        const userDoc = await db.collection('users').doc(userId).get();
+        if (!userDoc.exists) {
+            throw new Error('User not found');
+        }
+
+        const userData = userDoc.data();
+
+        // Create comment
+        const commentData = {
+            userId,
+            userName: userData.displayName || 'Anonymous',
+            userPhotoURL: userData.photoURL || null,
+            text: text.trim(),
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            edited: false,
+            highlightId,
+            highlightOwnerId,
+            parentId: parentId || null,
+            replyCount: 0
+        };
+
+        // Add comment to highlight owner's comments subcollection
+        const commentRef = await db
+            .collection('users')
+            .doc(highlightOwnerId)
+            .collection('highlights')
+            .doc(highlightId)
+            .collection('comments')
+            .add(commentData);
+
+        // If it's a reply, increment parent's reply count
+        if (parentId) {
+            const parentCommentRef = db
+                .collection('users')
+                .doc(highlightOwnerId)
+                .collection('highlights')
+                .doc(highlightId)
+                .collection('comments')
+                .doc(parentId);
+
+            await parentCommentRef.update({
+                replyCount: admin.firestore.FieldValue.increment(1)
+            });
+        }
+
+        logger.log(`Comment created: ${commentRef.id} by user ${userId} on highlight ${highlightId}`);
+
+        return {
+            success: true,
+            commentId: commentRef.id,
+            comment: {
+                id: commentRef.id,
+                ...commentData,
+                timestamp: new Date()
+            }
+        };
+
+    } catch (error) {
+        logger.error('Error creating comment:', error);
+        throw new Error(error.message || 'Failed to create comment');
+    }
+});
+
+/**
+ * Update a comment
+ */
+exports.updateComment = onCall(async (request) => {
+    const { auth, data } = request;
+
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const { commentId, highlightId, highlightOwnerId, text } = data;
+
+    if (!commentId || !highlightId || !highlightOwnerId || !text) {
+        throw new Error('commentId, highlightId, highlightOwnerId, and text are required');
+    }
+
+    if (text.trim().length === 0) {
+        throw new Error('Comment text cannot be empty');
+    }
+
+    if (text.length > 1000) {
+        throw new Error('Comment text cannot exceed 1000 characters');
+    }
+
+    const db = getFirestore();
+
+    try {
+        const commentRef = db
+            .collection('users')
+            .doc(highlightOwnerId)
+            .collection('highlights')
+            .doc(highlightId)
+            .collection('comments')
+            .doc(commentId);
+
+        const commentDoc = await commentRef.get();
+
+        if (!commentDoc.exists) {
+            throw new Error('Comment not found');
+        }
+
+        const commentData = commentDoc.data();
+
+        // Check if user owns the comment
+        if (commentData.userId !== userId) {
+            throw new Error('You can only edit your own comments');
+        }
+
+        // Update comment
+        await commentRef.update({
+            text: text.trim(),
+            edited: true,
+            editedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        logger.log(`Comment updated: ${commentId} by user ${userId}`);
+
+        return {
+            success: true,
+            message: 'Comment updated successfully'
+        };
+
+    } catch (error) {
+        logger.error('Error updating comment:', error);
+        throw new Error(error.message || 'Failed to update comment');
+    }
+});
+
+/**
+ * Delete a comment
+ */
+exports.deleteComment = onCall(async (request) => {
+    const { auth, data } = request;
+
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const { commentId, highlightId, highlightOwnerId, parentId } = data;
+
+    if (!commentId || !highlightId || !highlightOwnerId) {
+        throw new Error('commentId, highlightId, and highlightOwnerId are required');
+    }
+
+    const db = getFirestore();
+
+    try {
+        const commentRef = db
+            .collection('users')
+            .doc(highlightOwnerId)
+            .collection('highlights')
+            .doc(highlightId)
+            .collection('comments')
+            .doc(commentId);
+
+        const commentDoc = await commentRef.get();
+
+        if (!commentDoc.exists) {
+            throw new Error('Comment not found');
+        }
+
+        const commentData = commentDoc.data();
+
+        // Check if user owns the comment or owns the highlight
+        if (commentData.userId !== userId && highlightOwnerId !== userId) {
+            throw new Error('You can only delete your own comments or comments on your highlights');
+        }
+
+        // If comment has replies, just mark as deleted instead of removing
+        if (commentData.replyCount > 0) {
+            await commentRef.update({
+                text: '[deleted]',
+                deleted: true,
+                deletedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+        } else {
+            // No replies, safe to delete completely
+            await commentRef.delete();
+
+            // If it's a reply, decrement parent's reply count
+            if (parentId) {
+                const parentCommentRef = db
+                    .collection('users')
+                    .doc(highlightOwnerId)
+                    .collection('highlights')
+                    .doc(highlightId)
+                    .collection('comments')
+                    .doc(parentId);
+
+                await parentCommentRef.update({
+                    replyCount: admin.firestore.FieldValue.increment(-1)
+                });
+            }
+        }
+
+        logger.log(`Comment deleted: ${commentId} by user ${userId}`);
+
+        return {
+            success: true,
+            message: 'Comment deleted successfully'
+        };
+
+    } catch (error) {
+        logger.error('Error deleting comment:', error);
+        throw new Error(error.message || 'Failed to delete comment');
+    }
+});
+
+/**
+ * Notifications System
+ * Creates notifications for important events
+ */
+
+/**
+ * Helper function to create a notification
+ */
+async function createNotification(db, userId, notificationData) {
+    try {
+        await db.collection('users').doc(userId).collection('notifications').add({
+            ...notificationData,
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            read: false
+        });
+
+        // Increment unread count
+        await db.collection('users').doc(userId).update({
+            unreadNotifications: admin.firestore.FieldValue.increment(1)
+        });
+
+        logger.log(`Notification created for user ${userId}`);
+    } catch (error) {
+        logger.error('Error creating notification:', error);
+    }
+}
+
+/**
+ * Trigger: Notify when someone comments on your highlight
+ */
+exports.onCommentCreated = onDocumentCreated(
+    "users/{userId}/highlights/{highlightId}/comments/{commentId}",
+    async (event) => {
+        const highlightOwnerId = event.params.userId;
+        const highlightId = event.params.highlightId;
+        const commentId = event.params.commentId;
+        const commentData = event.data.data();
+
+        const db = getFirestore();
+
+        try {
+            // Don't notify if commenting on own highlight
+            if (commentData.userId === highlightOwnerId) {
+                return;
+            }
+
+            // Get highlight data
+            const highlightDoc = await db
+                .collection('users')
+                .doc(highlightOwnerId)
+                .collection('highlights')
+                .doc(highlightId)
+                .get();
+
+            if (!highlightDoc.exists) {
+                return;
+            }
+
+            const highlightData = highlightDoc.data();
+
+            // Create notification
+            if (commentData.parentId) {
+                // This is a reply - notify the parent comment author
+                const parentCommentDoc = await db
+                    .collection('users')
+                    .doc(highlightOwnerId)
+                    .collection('highlights')
+                    .doc(highlightId)
+                    .collection('comments')
+                    .doc(commentData.parentId)
+                    .get();
+
+                if (parentCommentDoc.exists) {
+                    const parentCommentData = parentCommentDoc.data();
+                    const parentAuthorId = parentCommentData.userId;
+
+                    // Don't notify if replying to own comment
+                    if (parentAuthorId !== commentData.userId) {
+                        await createNotification(db, parentAuthorId, {
+                            type: 'comment_reply',
+                            actorId: commentData.userId,
+                            actorName: commentData.userName,
+                            actorPhotoURL: commentData.userPhotoURL,
+                            highlightId: highlightId,
+                            highlightText: highlightData.text?.substring(0, 100) || '',
+                            commentId: commentId,
+                            commentText: commentData.text.substring(0, 100),
+                            highlightOwnerId: highlightOwnerId
+                        });
+                    }
+                }
+            } else {
+                // Top-level comment - notify highlight owner
+                await createNotification(db, highlightOwnerId, {
+                    type: 'new_comment',
+                    actorId: commentData.userId,
+                    actorName: commentData.userName,
+                    actorPhotoURL: commentData.userPhotoURL,
+                    highlightId: highlightId,
+                    highlightText: highlightData.text?.substring(0, 100) || '',
+                    commentId: commentId,
+                    commentText: commentData.text.substring(0, 100)
+                });
+            }
+
+            logger.log(`Comment notification created for highlight ${highlightId}`);
+
+        } catch (error) {
+            logger.error('Error creating comment notification:', error);
+        }
+    }
+);
+
+/**
+ * Trigger: Notify when someone follows you
+ */
+exports.onNewFollower = onDocumentCreated(
+    "users/{userId}/followers/{followerId}",
+    async (event) => {
+        const userId = event.params.userId;
+        const followerId = event.params.followerId;
+
+        const db = getFirestore();
+
+        try {
+            // Get follower info
+            const followerDoc = await db.collection('users').doc(followerId).get();
+
+            if (!followerDoc.exists) {
+                return;
+            }
+
+            const followerData = followerDoc.data();
+
+            // Create notification
+            await createNotification(db, userId, {
+                type: 'new_follower',
+                actorId: followerId,
+                actorName: followerData.displayName || 'Anonymous',
+                actorPhotoURL: followerData.photoURL || null
+            });
+
+            logger.log(`Follower notification created: ${followerId} followed ${userId}`);
+
+        } catch (error) {
+            logger.error('Error creating follower notification:', error);
+        }
+    }
+);
+
+/**
+ * Mark notification as read
+ */
+exports.markNotificationRead = onCall(async (request) => {
+    const { auth, data } = request;
+
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const { notificationId } = data;
+
+    if (!notificationId) {
+        throw new Error('notificationId is required');
+    }
+
+    const db = getFirestore();
+
+    try {
+        const notificationRef = db
+            .collection('users')
+            .doc(userId)
+            .collection('notifications')
+            .doc(notificationId);
+
+        const notificationDoc = await notificationRef.get();
+
+        if (!notificationDoc.exists) {
+            throw new Error('Notification not found');
+        }
+
+        const notificationData = notificationDoc.data();
+
+        // Only mark as read if it's currently unread
+        if (!notificationData.read) {
+            await notificationRef.update({
+                read: true,
+                readAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            // Decrement unread count
+            await db.collection('users').doc(userId).update({
+                unreadNotifications: admin.firestore.FieldValue.increment(-1)
+            });
+        }
+
+        logger.log(`Notification ${notificationId} marked as read`);
+
+        return {
+            success: true,
+            message: 'Notification marked as read'
+        };
+
+    } catch (error) {
+        logger.error('Error marking notification as read:', error);
+        throw new Error(error.message || 'Failed to mark notification as read');
+    }
+});
+
+/**
+ * Mark all notifications as read
+ */
+exports.markAllNotificationsRead = onCall(async (request) => {
+    const { auth } = request;
+
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const db = getFirestore();
+
+    try {
+        // Get all unread notifications
+        const unreadQuery = await db
+            .collection('users')
+            .doc(userId)
+            .collection('notifications')
+            .where('read', '==', false)
+            .get();
+
+        if (unreadQuery.empty) {
+            return {
+                success: true,
+                message: 'No unread notifications',
+                count: 0
+            };
+        }
+
+        const batch = db.batch();
+        let count = 0;
+
+        unreadQuery.docs.forEach(doc => {
+            batch.update(doc.ref, {
+                read: true,
+                readAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            count++;
+        });
+
+        await batch.commit();
+
+        // Reset unread count
+        await db.collection('users').doc(userId).update({
+            unreadNotifications: 0
+        });
+
+        logger.log(`Marked ${count} notifications as read for user ${userId}`);
+
+        return {
+            success: true,
+            message: `Marked ${count} notifications as read`,
+            count
+        };
+
+    } catch (error) {
+        logger.error('Error marking all notifications as read:', error);
+        throw new Error(error.message || 'Failed to mark all notifications as read');
+    }
+});
+
+// ============================================================================
+// READING GROUPS FUNCTIONS
+// ============================================================================
+
+/**
+ * Create a new reading group
+ */
+exports.createGroup = onCall(async (request) => {
+    const { auth, data } = request;
+
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const { name, description, bookId, bookTitle, isPrivate, tags } = data;
+
+    // Validation
+    if (!name || name.trim().length === 0) {
+        throw new Error('Group name is required');
+    }
+
+    if (name.length > 100) {
+        throw new Error('Group name cannot exceed 100 characters');
+    }
+
+    if (description && description.length > 1000) {
+        throw new Error('Description cannot exceed 1000 characters');
+    }
+
+    const db = getFirestore();
+
+    try {
+        // Get user info
+        const userDoc = await db.collection('users').doc(userId).get();
+        const userData = userDoc.data();
+
+        // Create group document
+        const groupData = {
+            name: name.trim(),
+            description: description?.trim() || '',
+            bookId: bookId || null,
+            bookTitle: bookTitle || null,
+            isPrivate: isPrivate || false,
+            tags: tags || [],
+            createdBy: userId,
+            createdByName: userData.displayName || 'Anonymous',
+            createdByPhotoURL: userData.photoURL || null,
+            memberCount: 1,
+            postCount: 0,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        const groupRef = await db.collection('groups').add(groupData);
+
+        // Add creator as admin member
+        await db.collection('groups').doc(groupRef.id).collection('members').doc(userId).set({
+            userId,
+            userName: userData.displayName || 'Anonymous',
+            userPhotoURL: userData.photoURL || null,
+            role: 'admin',
+            joinedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Add group to user's groups
+        await db.collection('users').doc(userId).collection('groups').doc(groupRef.id).set({
+            groupId: groupRef.id,
+            name: groupData.name,
+            role: 'admin',
+            joinedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        logger.log(`Group created: ${groupRef.id} by user ${userId}`);
+
+        return {
+            success: true,
+            groupId: groupRef.id,
+            message: 'Group created successfully'
+        };
+
+    } catch (error) {
+        logger.error('Error creating group:', error);
+        throw new Error(error.message || 'Failed to create group');
+    }
+});
+
+/**
+ * Join a reading group
+ */
+exports.joinGroup = onCall(async (request) => {
+    const { auth, data } = request;
+
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const { groupId } = data;
+
+    if (!groupId) {
+        throw new Error('Group ID is required');
+    }
+
+    const db = getFirestore();
+
+    try {
+        const groupRef = db.collection('groups').doc(groupId);
+        const groupDoc = await groupRef.get();
+
+        if (!groupDoc.exists) {
+            throw new Error('Group not found');
+        }
+
+        const groupData = groupDoc.data();
+
+        // Check if already a member
+        const memberDoc = await groupRef.collection('members').doc(userId).get();
+        if (memberDoc.exists) {
+            return {
+                success: false,
+                message: 'Already a member of this group'
+            };
+        }
+
+        // Get user info
+        const userDoc = await db.collection('users').doc(userId).get();
+        const userData = userDoc.data();
+
+        // Add as member
+        await groupRef.collection('members').doc(userId).set({
+            userId,
+            userName: userData.displayName || 'Anonymous',
+            userPhotoURL: userData.photoURL || null,
+            role: 'member',
+            joinedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Increment member count
+        await groupRef.update({
+            memberCount: admin.firestore.FieldValue.increment(1),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Add group to user's groups
+        await db.collection('users').doc(userId).collection('groups').doc(groupId).set({
+            groupId,
+            name: groupData.name,
+            role: 'member',
+            joinedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        logger.log(`User ${userId} joined group ${groupId}`);
+
+        return {
+            success: true,
+            message: 'Successfully joined group'
+        };
+
+    } catch (error) {
+        logger.error('Error joining group:', error);
+        throw new Error(error.message || 'Failed to join group');
+    }
+});
+
+/**
+ * Leave a reading group
+ */
+exports.leaveGroup = onCall(async (request) => {
+    const { auth, data } = request;
+
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const { groupId } = data;
+
+    if (!groupId) {
+        throw new Error('Group ID is required');
+    }
+
+    const db = getFirestore();
+
+    try {
+        const groupRef = db.collection('groups').doc(groupId);
+        const groupDoc = await groupRef.get();
+
+        if (!groupDoc.exists) {
+            throw new Error('Group not found');
+        }
+
+        // Check if member
+        const memberDoc = await groupRef.collection('members').doc(userId).get();
+        if (!memberDoc.exists) {
+            throw new Error('Not a member of this group');
+        }
+
+        const memberData = memberDoc.data();
+
+        // Don't allow admin to leave if they're the only admin
+        if (memberData.role === 'admin') {
+            const adminsSnapshot = await groupRef.collection('members')
+                .where('role', '==', 'admin')
+                .get();
+
+            if (adminsSnapshot.size === 1) {
+                throw new Error('Cannot leave group as the only admin. Please assign another admin first or delete the group.');
+            }
+        }
+
+        // Remove from members
+        await groupRef.collection('members').doc(userId).delete();
+
+        // Decrement member count
+        await groupRef.update({
+            memberCount: admin.firestore.FieldValue.increment(-1),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Remove from user's groups
+        await db.collection('users').doc(userId).collection('groups').doc(groupId).delete();
+
+        logger.log(`User ${userId} left group ${groupId}`);
+
+        return {
+            success: true,
+            message: 'Successfully left group'
+        };
+
+    } catch (error) {
+        logger.error('Error leaving group:', error);
+        throw new Error(error.message || 'Failed to leave group');
+    }
+});
+
+/**
+ * Update group details (admin only)
+ */
+exports.updateGroup = onCall(async (request) => {
+    const { auth, data } = request;
+
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const { groupId, name, description, isPrivate, tags } = data;
+
+    if (!groupId) {
+        throw new Error('Group ID is required');
+    }
+
+    const db = getFirestore();
+
+    try {
+        const groupRef = db.collection('groups').doc(groupId);
+        const groupDoc = await groupRef.get();
+
+        if (!groupDoc.exists) {
+            throw new Error('Group not found');
+        }
+
+        // Check if user is admin
+        const memberDoc = await groupRef.collection('members').doc(userId).get();
+        if (!memberDoc.exists || memberDoc.data().role !== 'admin') {
+            throw new Error('Admin privileges required');
+        }
+
+        // Validation
+        if (name && name.length > 100) {
+            throw new Error('Group name cannot exceed 100 characters');
+        }
+
+        if (description && description.length > 1000) {
+            throw new Error('Description cannot exceed 1000 characters');
+        }
+
+        // Build update object
+        const updates = {
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        if (name !== undefined) updates.name = name.trim();
+        if (description !== undefined) updates.description = description.trim();
+        if (isPrivate !== undefined) updates.isPrivate = isPrivate;
+        if (tags !== undefined) updates.tags = tags;
+
+        await groupRef.update(updates);
+
+        logger.log(`Group ${groupId} updated by user ${userId}`);
+
+        return {
+            success: true,
+            message: 'Group updated successfully'
+        };
+
+    } catch (error) {
+        logger.error('Error updating group:', error);
+        throw new Error(error.message || 'Failed to update group');
+    }
+});
+
+/**
+ * Delete a reading group (admin only)
+ */
+exports.deleteGroup = onCall(async (request) => {
+    const { auth, data } = request;
+
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const { groupId } = data;
+
+    if (!groupId) {
+        throw new Error('Group ID is required');
+    }
+
+    const db = getFirestore();
+
+    try {
+        const groupRef = db.collection('groups').doc(groupId);
+        const groupDoc = await groupRef.get();
+
+        if (!groupDoc.exists) {
+            throw new Error('Group not found');
+        }
+
+        // Check if user is admin
+        const memberDoc = await groupRef.collection('members').doc(userId).get();
+        if (!memberDoc.exists || memberDoc.data().role !== 'admin') {
+            throw new Error('Admin privileges required');
+        }
+
+        // Delete all members
+        const membersSnapshot = await groupRef.collection('members').get();
+        const batch = db.batch();
+
+        membersSnapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+
+        // Delete all posts
+        const postsSnapshot = await groupRef.collection('posts').get();
+        postsSnapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+
+        await batch.commit();
+
+        // Delete group document
+        await groupRef.delete();
+
+        // Remove from all users' groups subcollections
+        const usersSnapshot = await db.collectionGroup('groups')
+            .where('groupId', '==', groupId)
+            .get();
+
+        const userBatch = db.batch();
+        usersSnapshot.docs.forEach(doc => {
+            userBatch.delete(doc.ref);
+        });
+        await userBatch.commit();
+
+        logger.log(`Group ${groupId} deleted by user ${userId}`);
+
+        return {
+            success: true,
+            message: 'Group deleted successfully'
+        };
+
+    } catch (error) {
+        logger.error('Error deleting group:', error);
+        throw new Error(error.message || 'Failed to delete group');
+    }
+});
+
+/**
+ * Create a group discussion post
+ */
+exports.createGroupPost = onCall(async (request) => {
+    const { auth, data } = request;
+
+    if (!auth) {
+        throw new Error('Authentication required');
+    }
+
+    const userId = auth.uid;
+    const { groupId, title, content, highlightId } = data;
+
+    if (!groupId) {
+        throw new Error('Group ID is required');
+    }
+
+    if (!title || title.trim().length === 0) {
+        throw new Error('Post title is required');
+    }
+
+    if (title.length > 200) {
+        throw new Error('Post title cannot exceed 200 characters');
+    }
+
+    if (content && content.length > 5000) {
+        throw new Error('Post content cannot exceed 5000 characters');
+    }
+
+    const db = getFirestore();
+
+    try {
+        const groupRef = db.collection('groups').doc(groupId);
+        const groupDoc = await groupRef.get();
+
+        if (!groupDoc.exists) {
+            throw new Error('Group not found');
+        }
+
+        // Check if user is a member
+        const memberDoc = await groupRef.collection('members').doc(userId).get();
+        if (!memberDoc.exists) {
+            throw new Error('Must be a member to post');
+        }
+
+        // Get user info
+        const userDoc = await db.collection('users').doc(userId).get();
+        const userData = userDoc.data();
+
+        // Create post
+        const postData = {
+            title: title.trim(),
+            content: content?.trim() || '',
+            authorId: userId,
+            authorName: userData.displayName || 'Anonymous',
+            authorPhotoURL: userData.photoURL || null,
+            highlightId: highlightId || null,
+            commentCount: 0,
+            likeCount: 0,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        const postRef = await groupRef.collection('posts').add(postData);
+
+        // Increment post count
+        await groupRef.update({
+            postCount: admin.firestore.FieldValue.increment(1),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        logger.log(`Post created in group ${groupId} by user ${userId}`);
+
+        return {
+            success: true,
+            postId: postRef.id,
+            message: 'Post created successfully'
+        };
+
+    } catch (error) {
+        logger.error('Error creating group post:', error);
+        throw new Error(error.message || 'Failed to create post');
+    }
+});
+
+/**
+ * Trigger when someone joins a group
+ * Notifies group admins
+ */
+exports.onGroupJoin = onDocumentCreated(
+    "groups/{groupId}/members/{userId}",
+    async (event) => {
+        const groupId = event.params.groupId;
+        const userId = event.params.userId;
+        const memberData = event.data.data();
+        const db = getFirestore();
+
+        try {
+            // Get group info
+            const groupDoc = await db.collection('groups').doc(groupId).get();
+            if (!groupDoc.exists) return;
+
+            const groupData = groupDoc.data();
+
+            // Get all admins
+            const adminsSnapshot = await db
+                .collection('groups')
+                .doc(groupId)
+                .collection('members')
+                .where('role', '==', 'admin')
+                .get();
+
+            // Notify each admin (except if they're the one who joined)
+            const batch = db.batch();
+
+            for (const adminDoc of adminsSnapshot.docs) {
+                const adminId = adminDoc.id;
+
+                if (adminId === userId) continue; // Don't notify self
+
+                const notificationRef = db
+                    .collection('users')
+                    .doc(adminId)
+                    .collection('notifications')
+                    .doc();
+
+                batch.set(notificationRef, {
+                    type: 'group_join',
+                    actorId: userId,
+                    actorName: memberData.userName || 'Someone',
+                    actorPhotoURL: memberData.userPhotoURL || null,
+                    groupId: groupId,
+                    groupName: groupData.name,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    read: false
+                });
+
+                // Increment unread count
+                const userRef = db.collection('users').doc(adminId);
+                batch.update(userRef, {
+                    unreadNotifications: admin.firestore.FieldValue.increment(1)
+                });
+            }
+
+            await batch.commit();
+
+            logger.log(`Notified admins of user ${userId} joining group ${groupId}`);
+
+        } catch (error) {
+            logger.error('Error in onGroupJoin trigger:', error);
+        }
+    }
+);

@@ -48,6 +48,167 @@
             margin-top: 20px;
             font-weight: bold;
         }
+
+        /* Mode Selection Styles */
+        .upload-step {
+            margin-bottom: 30px;
+        }
+
+        .step-description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .mode-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .mode-card {
+            cursor: pointer;
+            display: block;
+        }
+
+        .mode-card input[type="radio"] {
+            display: none;
+        }
+
+        .mode-card-content {
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 24px;
+            background: #fff;
+            transition: all 0.3s;
+            height: 100%;
+        }
+
+        .mode-card:hover .mode-card-content {
+            border-color: #4CAF50;
+            transform: translateY(-4px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        }
+
+        .mode-card input[type="radio"]:checked + .mode-card-content {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.05);
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.2);
+        }
+
+        .mode-icon {
+            font-size: 48px;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .mode-card-content h3 {
+            text-align: center;
+            margin: 0 0 8px 0;
+            color: #333;
+        }
+
+        .mode-subtitle {
+            text-align: center;
+            font-size: 14px;
+            color: #4CAF50;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .mode-card-content p {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+
+        .mode-features {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            text-align: left;
+        }
+
+        .mode-features li {
+            padding: 6px 0;
+            font-size: 14px;
+        }
+
+        .feature-yes {
+            color: #4CAF50;
+        }
+
+        .feature-no {
+            color: #999;
+        }
+
+        .feature-warning {
+            color: #FF9800;
+        }
+
+        .btn-primary {
+            padding: 15px 40px;
+            font-size: 18px;
+            font-weight: 600;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+        }
+
+        .btn-large {
+            display: block;
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .btn-back {
+            background: transparent;
+            border: none;
+            color: #666;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 8px 16px;
+            margin-bottom: 20px;
+        }
+
+        .btn-back:hover {
+            color: #4CAF50;
+        }
+
+        /* Progress Bar */
+        .progress-bar-container {
+            width: 100%;
+            height: 30px;
+            background: #f0f0f0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #45a049);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        #progress-text {
+            text-align: center;
+            color: #666;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
@@ -56,24 +217,99 @@
     </header>
 
     <div class="upload-container">
-        <div class="instructions">
-            <h2>How to Find Your Highlights File</h2>
-            <p>Follow these steps to locate your Kobo database file:</p>
-            <ol>
-                <li>Connect your Kobo eReader to your computer.</li>
-                <li>Open the Kobo drive. You should see a hidden folder named <strong>.kobo</strong> (you may need to enable "Show hidden files" on your computer).</li>
-                <li>Inside the <strong>.kobo</strong> folder, find the file named <strong>KoboReader.sqlite</strong>.</li>
-            </ol>
-            <p>This file contains all your highlights and notes.</p>
+        <!-- Step 1: Privacy Mode Selection -->
+        <div id="mode-selection" class="upload-step">
+            <h2>Choose Your Privacy Level</h2>
+            <p class="step-description">Select how you want to process your reading data</p>
+
+            <div class="mode-cards">
+                <label class="mode-card" for="mode-offline">
+                    <input type="radio" name="upload-mode" id="mode-offline" value="offline" checked>
+                    <div class="mode-card-content">
+                        <div class="mode-icon">🔒</div>
+                        <h3>Offline Mode</h3>
+                        <div class="mode-subtitle">Maximum Privacy</div>
+                        <p>Process your data entirely in your browser. Nothing uploaded to our servers.</p>
+                        <ul class="mode-features">
+                            <li class="feature-yes">✅ Complete privacy</li>
+                            <li class="feature-yes">✅ Export to PKM tools</li>
+                            <li class="feature-yes">✅ Local analytics</li>
+                            <li class="feature-no">❌ No cloud sync</li>
+                            <li class="feature-no">❌ No social features</li>
+                        </ul>
+                    </div>
+                </label>
+
+                <label class="mode-card" for="mode-private">
+                    <input type="radio" name="upload-mode" id="mode-private" value="private">
+                    <div class="mode-card-content">
+                        <div class="mode-icon">🔐</div>
+                        <h3>Private Account</h3>
+                        <div class="mode-subtitle">Cloud Storage, Private</div>
+                        <p>Store your data securely in the cloud. Your profile and highlights are private.</p>
+                        <ul class="mode-features">
+                            <li class="feature-yes">✅ Cloud sync across devices</li>
+                            <li class="feature-yes">✅ Full analytics</li>
+                            <li class="feature-yes">✅ Privacy guaranteed</li>
+                            <li class="feature-no">❌ No public profile</li>
+                            <li class="feature-no">❌ Limited social features</li>
+                        </ul>
+                    </div>
+                </label>
+
+                <label class="mode-card" for="mode-public">
+                    <input type="radio" name="upload-mode" id="mode-public" value="public">
+                    <div class="mode-card-content">
+                        <div class="mode-icon">🌍</div>
+                        <h3>Public Account</h3>
+                        <div class="mode-subtitle">Share & Discover</div>
+                        <p>Share your reading journey. Connect with other readers.</p>
+                        <ul class="mode-features">
+                            <li class="feature-yes">✅ Public profile</li>
+                            <li class="feature-yes">✅ Social features</li>
+                            <li class="feature-yes">✅ Discover readers</li>
+                            <li class="feature-warning">⚠️ Highlights visible to all</li>
+                        </ul>
+                    </div>
+                </label>
+            </div>
+
+            <button id="continue-to-upload" class="btn-primary btn-large">Continue</button>
         </div>
-        
-        <button id="upload-button">Select KoboReader.sqlite File</button>
-        <input type="file" id="file-input" style="display: none;" accept=".sqlite">
-        
-        <p id="upload-status"></p>
+
+        <!-- Step 2: File Upload -->
+        <div id="file-upload-section" class="upload-step" style="display: none;">
+            <button id="back-to-mode" class="btn-back">← Back</button>
+
+            <div class="instructions">
+                <h2>How to Find Your Highlights File</h2>
+                <p>Follow these steps to locate your Kobo database file:</p>
+                <ol>
+                    <li>Connect your Kobo eReader to your computer.</li>
+                    <li>Open the Kobo drive. You should see a hidden folder named <strong>.kobo</strong> (you may need to enable "Show hidden files" on your computer).</li>
+                    <li>Inside the <strong>.kobo</strong> folder, find the file named <strong>KoboReader.sqlite</strong>.</li>
+                </ol>
+                <p>This file contains all your highlights and notes.</p>
+            </div>
+
+            <button id="upload-button">Select KoboReader.sqlite File</button>
+            <input type="file" id="file-input" style="display: none;" accept=".sqlite">
+
+            <p id="upload-status"></p>
+
+            <!-- Progress bar for offline mode -->
+            <div id="processing-progress" style="display: none;">
+                <div class="progress-bar-container">
+                    <div id="progress-bar" class="progress-bar"></div>
+                </div>
+                <p id="progress-text">Processing...</p>
+            </div>
+        </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/sql.js@1.8.0/dist/sql-wasm.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/2.1.0/showdown.min.js"></script>
+    <script type="module" src="/offline-processor.js"></script>
     <script type="module" src="/script.js"></script>
     <script type="module" src="/upload.js"></script>
 </body>

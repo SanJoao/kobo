@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search - Koby</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <header id="header" class="header"></header>
+
+    <main class="search-page">
+        <div class="search-container">
+            <!-- Search Bar -->
+            <div class="search-header">
+                <div class="search-input-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text"
+                           id="search-input"
+                           class="search-input"
+                           placeholder="Search highlights, books, users, or groups..."
+                           autofocus>
+                    <button class="btn-clear-search" id="clear-search-btn" style="display: none;" onclick="clearSearch()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Search Filters -->
+            <div class="search-filters">
+                <button class="search-filter active" data-type="all" onclick="setSearchFilter('all')">
+                    <i class="fas fa-th"></i>
+                    All
+                </button>
+                <button class="search-filter" data-type="highlights" onclick="setSearchFilter('highlights')">
+                    <i class="fas fa-highlighter"></i>
+                    Highlights
+                </button>
+                <button class="search-filter" data-type="books" onclick="setSearchFilter('books')">
+                    <i class="fas fa-book"></i>
+                    Books
+                </button>
+                <button class="search-filter" data-type="users" onclick="setSearchFilter('users')">
+                    <i class="fas fa-user"></i>
+                    Users
+                </button>
+                <button class="search-filter" data-type="groups" onclick="setSearchFilter('groups')">
+                    <i class="fas fa-users"></i>
+                    Groups
+                </button>
+            </div>
+
+            <!-- Search Results -->
+            <div class="search-results" id="search-results">
+                <!-- Initial state with suggestions -->
+                <div class="search-suggestions" id="search-suggestions">
+                    <h3><i class="fas fa-lightbulb"></i> Search Suggestions</h3>
+                    <div class="suggestions-list" id="suggestions-list">
+                        <div class="suggestions-loading">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <p>Loading suggestions...</p>
+                        </div>
+                    </div>
+                    <div class="search-tips">
+                        <h4><i class="fas fa-info-circle"></i> Search Tips</h4>
+                        <ul>
+                            <li>Search for specific quotes or passages from your highlights</li>
+                            <li>Find books by title or author</li>
+                            <li>Discover users by name</li>
+                            <li>Explore reading groups by topic or book</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Results container (hidden initially) -->
+                <div class="search-results-content" id="search-results-content" style="display: none;">
+                    <!-- All Results View -->
+                    <div class="search-section" id="all-results" style="display: none;">
+                        <div class="search-result-group" id="highlights-section" style="display: none;">
+                            <h3 class="search-result-header">
+                                <i class="fas fa-highlighter"></i>
+                                Highlights
+                                <span class="result-count" id="highlights-count"></span>
+                            </h3>
+                            <div class="search-items" id="highlights-results"></div>
+                        </div>
+
+                        <div class="search-result-group" id="books-section" style="display: none;">
+                            <h3 class="search-result-header">
+                                <i class="fas fa-book"></i>
+                                Books
+                                <span class="result-count" id="books-count"></span>
+                            </h3>
+                            <div class="search-items" id="books-results"></div>
+                        </div>
+
+                        <div class="search-result-group" id="users-section" style="display: none;">
+                            <h3 class="search-result-header">
+                                <i class="fas fa-user"></i>
+                                Users
+                                <span class="result-count" id="users-count"></span>
+                            </h3>
+                            <div class="search-items" id="users-results"></div>
+                        </div>
+
+                        <div class="search-result-group" id="groups-section" style="display: none;">
+                            <h3 class="search-result-header">
+                                <i class="fas fa-users"></i>
+                                Groups
+                                <span class="result-count" id="groups-count"></span>
+                            </h3>
+                            <div class="search-items" id="groups-results"></div>
+                        </div>
+                    </div>
+
+                    <!-- Individual Filter Views -->
+                    <div class="search-section" id="filtered-results" style="display: none;">
+                        <div class="search-items" id="filtered-items"></div>
+                    </div>
+
+                    <!-- No Results -->
+                    <div class="search-no-results" id="no-results" style="display: none;">
+                        <i class="fas fa-search-minus"></i>
+                        <h3>No results found</h3>
+                        <p>Try different keywords or check your spelling</p>
+                    </div>
+
+                    <!-- Loading State -->
+                    <div class="search-loading" id="search-loading" style="display: none;">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Searching...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script type="module" src="/firebase-config.js"></script>
+    <script type="module" src="/search-manager.js"></script>
+    <script type="module">
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        const auth = getAuth();
+        let currentUser = null;
+        let currentFilter = 'all';
+        let searchTimeout = null;
+        let lastSearchTerm = '';
+
+        // Load header
+        fetch('/header.html')
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('header').innerHTML = data;
+            });
+
+        // Wait for auth state
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                await loadSearchSuggestions();
+            } else {
+                window.location.href = '/login.html';
+            }
+        });
+
+        // Search input handler
+        const searchInput = document.getElementById('search-input');
+        const clearBtn = document.getElementById('clear-search-btn');
+
+        searchInput.addEventListener('input', (e) => {
+            const value = e.target.value.trim();
+
+            // Show/hide clear button
+            if (value) {
+                clearBtn.style.display = 'block';
+            } else {
+                clearBtn.style.display = 'none';
+            }
+
+            // Debounce search
+            clearTimeout(searchTimeout);
+
+            if (value.length === 0) {
+                showSuggestions();
+                return;
+            }
+
+            if (value.length < 2) {
+                return; // Wait for at least 2 characters
+            }
+
+            searchTimeout = setTimeout(() => {
+                performSearch(value);
+            }, 300); // 300ms debounce
+        });
+
+        // Enter key to search
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const value = e.target.value.trim();
+                if (value.length >= 2) {
+                    performSearch(value);
+                }
+            }
+        });
+
+        // Clear search
+        window.clearSearch = function() {
+            searchInput.value = '';
+            clearBtn.style.display = 'none';
+            lastSearchTerm = '';
+            showSuggestions();
+        };
+
+        // Set search filter
+        window.setSearchFilter = function(type) {
+            currentFilter = type;
+
+            // Update active filter button
+            document.querySelectorAll('.search-filter').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-type="${type}"]`).classList.add('active');
+
+            // Re-run search if there's a search term
+            if (lastSearchTerm) {
+                performSearch(lastSearchTerm);
+            }
+        };
+
+        // Perform search
+        async function performSearch(searchTerm) {
+            lastSearchTerm = searchTerm;
+
+            // Hide suggestions, show results container
+            document.getElementById('search-suggestions').style.display = 'none';
+            document.getElementById('search-results-content').style.display = 'block';
+
+            // Show loading
+            document.getElementById('search-loading').style.display = 'block';
+            document.getElementById('all-results').style.display = 'none';
+            document.getElementById('filtered-results').style.display = 'none';
+            document.getElementById('no-results').style.display = 'none';
+
+            try {
+                if (currentFilter === 'all') {
+                    // Search all types
+                    const results = await window.searchManager.searchAll(searchTerm, 10);
+                    displayAllResults(results);
+                } else {
+                    // Search specific type
+                    let results = [];
+                    switch (currentFilter) {
+                        case 'highlights':
+                            results = await window.searchManager.searchHighlights(searchTerm, 50);
+                            break;
+                        case 'books':
+                            results = await window.searchManager.searchBooks(searchTerm, 50);
+                            break;
+                        case 'users':
+                            results = await window.searchManager.searchUsers(searchTerm, 50);
+                            break;
+                        case 'groups':
+                            results = await window.searchManager.searchGroups(searchTerm, 50);
+                            break;
+                    }
+                    displayFilteredResults(results, currentFilter);
+                }
+            } catch (error) {
+                console.error('Search error:', error);
+                document.getElementById('search-loading').style.display = 'none';
+                document.getElementById('no-results').style.display = 'block';
+            }
+        }
+
+        // Display all results
+        function displayAllResults(results) {
+            document.getElementById('search-loading').style.display = 'none';
+
+            if (results.totalResults === 0) {
+                document.getElementById('no-results').style.display = 'block';
+                return;
+            }
+
+            document.getElementById('all-results').style.display = 'block';
+
+            // Highlights
+            if (results.highlights.length > 0) {
+                document.getElementById('highlights-section').style.display = 'block';
+                document.getElementById('highlights-count').textContent = `(${results.highlights.length})`;
+                document.getElementById('highlights-results').innerHTML = renderHighlights(results.highlights);
+            } else {
+                document.getElementById('highlights-section').style.display = 'none';
+            }
+
+            // Books
+            if (results.books.length > 0) {
+                document.getElementById('books-section').style.display = 'block';
+                document.getElementById('books-count').textContent = `(${results.books.length})`;
+                document.getElementById('books-results').innerHTML = renderBooks(results.books);
+            } else {
+                document.getElementById('books-section').style.display = 'none';
+            }
+
+            // Users
+            if (results.users.length > 0) {
+                document.getElementById('users-section').style.display = 'block';
+                document.getElementById('users-count').textContent = `(${results.users.length})`;
+                document.getElementById('users-results').innerHTML = renderUsers(results.users);
+            } else {
+                document.getElementById('users-section').style.display = 'none';
+            }
+
+            // Groups
+            if (results.groups.length > 0) {
+                document.getElementById('groups-section').style.display = 'block';
+                document.getElementById('groups-count').textContent = `(${results.groups.length})`;
+                document.getElementById('groups-results').innerHTML = renderGroups(results.groups);
+            } else {
+                document.getElementById('groups-section').style.display = 'none';
+            }
+        }
+
+        // Display filtered results
+        function displayFilteredResults(results, type) {
+            document.getElementById('search-loading').style.display = 'none';
+
+            if (results.length === 0) {
+                document.getElementById('no-results').style.display = 'block';
+                return;
+            }
+
+            document.getElementById('filtered-results').style.display = 'block';
+
+            let html = '';
+            switch (type) {
+                case 'highlights':
+                    html = renderHighlights(results);
+                    break;
+                case 'books':
+                    html = renderBooks(results);
+                    break;
+                case 'users':
+                    html = renderUsers(results);
+                    break;
+                case 'groups':
+                    html = renderGroups(results);
+                    break;
+            }
+
+            document.getElementById('filtered-items').innerHTML = html;
+        }
+
+        // Render highlights
+        function renderHighlights(highlights) {
+            let html = '';
+            highlights.forEach(highlight => {
+                html += `
+                    <div class="search-result-item highlight-item" onclick="viewHighlight('${highlight.user_id}', '${highlight.id}')">
+                        <div class="highlight-text">
+                            "${escapeHtml(highlight.text || 'No text')}"
+                        </div>
+                        <div class="highlight-meta">
+                            <span class="highlight-book">
+                                <i class="fas fa-book"></i>
+                                ${escapeHtml(highlight.title || 'Unknown')}
+                            </span>
+                            ${highlight.attribution ? `
+                                <span class="highlight-author">
+                                    <i class="fas fa-user-edit"></i>
+                                    ${escapeHtml(highlight.attribution)}
+                                </span>
+                            ` : ''}
+                            <span class="highlight-date">
+                                ${formatDate(highlight.date_created)}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            });
+            return html;
+        }
+
+        // Render books
+        function renderBooks(books) {
+            let html = '';
+            books.forEach(book => {
+                html += `
+                    <div class="search-result-item book-item">
+                        <div class="book-info">
+                            <i class="fas fa-book book-icon"></i>
+                            <div class="book-details">
+                                <h4 class="book-title">${escapeHtml(book.title || 'Untitled')}</h4>
+                                ${book.series ? `
+                                    <p class="book-series">
+                                        <i class="fas fa-layer-group"></i>
+                                        ${escapeHtml(book.series)} ${book.series_number ? `#${book.series_number}` : ''}
+                                    </p>
+                                ` : ''}
+                                ${book.percent_read ? `
+                                    <div class="book-progress">
+                                        <div class="progress-bar">
+                                            <div class="progress-fill" style="width: ${book.percent_read}%"></div>
+                                        </div>
+                                        <span class="progress-text">${Math.round(book.percent_read)}% read</span>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            return html;
+        }
+
+        // Render users
+        function renderUsers(users) {
+            let html = '';
+            users.forEach(user => {
+                html += `
+                    <div class="search-result-item user-item" onclick="viewUserProfile('${user.id}')">
+                        <img src="${user.photoURL || '/assets/default-avatar.png'}"
+                             alt="${user.displayName}"
+                             class="user-avatar">
+                        <div class="user-info">
+                            <h4 class="user-name">${escapeHtml(user.displayName || 'Anonymous')}</h4>
+                            ${user.bio ? `<p class="user-bio">${escapeHtml(user.bio)}</p>` : ''}
+                        </div>
+                        <button class="btn-view-profile">
+                            View Profile
+                            <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                `;
+            });
+            return html;
+        }
+
+        // Render groups
+        function renderGroups(groups) {
+            let html = '';
+            groups.forEach(group => {
+                html += `
+                    <div class="search-result-item group-item" onclick="viewGroup('${group.id}')">
+                        <div class="group-info">
+                            <h4 class="group-name">
+                                ${group.isPrivate ? '<i class="fas fa-lock"></i>' : ''}
+                                ${escapeHtml(group.name)}
+                            </h4>
+                            ${group.bookTitle ? `
+                                <p class="group-book">
+                                    <i class="fas fa-book"></i>
+                                    ${escapeHtml(group.bookTitle)}
+                                </p>
+                            ` : ''}
+                            <p class="group-description">${escapeHtml(group.description || '')}</p>
+                            <div class="group-stats">
+                                <span>
+                                    <i class="fas fa-users"></i>
+                                    ${group.memberCount} members
+                                </span>
+                                <span>
+                                    <i class="fas fa-comment"></i>
+                                    ${group.postCount} posts
+                                </span>
+                            </div>
+                        </div>
+                        <button class="btn-view-group">
+                            View Group
+                            <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                `;
+            });
+            return html;
+        }
+
+        // Load search suggestions
+        async function loadSearchSuggestions() {
+            const suggestionsContainer = document.getElementById('suggestions-list');
+
+            try {
+                const suggestions = await window.searchManager.getSearchSuggestions();
+
+                if (suggestions.length === 0) {
+                    suggestionsContainer.innerHTML = `
+                        <p class="no-suggestions">Start typing to search...</p>
+                    `;
+                    return;
+                }
+
+                let html = '';
+                suggestions.forEach(suggestion => {
+                    html += `
+                        <div class="suggestion-item" onclick="searchFromSuggestion('${escapeHtml(suggestion.title)}')">
+                            <i class="fas fa-${suggestion.type === 'book' ? 'book' : 'search'}"></i>
+                            <div class="suggestion-info">
+                                <p class="suggestion-title">${escapeHtml(suggestion.title)}</p>
+                                <p class="suggestion-subtitle">${escapeHtml(suggestion.subtitle)}</p>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                suggestionsContainer.innerHTML = html;
+
+            } catch (error) {
+                console.error('Error loading suggestions:', error);
+                suggestionsContainer.innerHTML = `
+                    <p class="no-suggestions">Start typing to search...</p>
+                `;
+            }
+        }
+
+        // Show suggestions (initial state)
+        function showSuggestions() {
+            document.getElementById('search-suggestions').style.display = 'block';
+            document.getElementById('search-results-content').style.display = 'none';
+        }
+
+        // Search from suggestion
+        window.searchFromSuggestion = function(term) {
+            searchInput.value = term;
+            clearBtn.style.display = 'block';
+            performSearch(term);
+        };
+
+        // View highlight
+        window.viewHighlight = function(userId, highlightId) {
+            window.location.href = `/user/${userId}?highlight=${highlightId}`;
+        };
+
+        // View user profile
+        window.viewUserProfile = function(userId) {
+            window.location.href = `/profile.html?userId=${userId}`;
+        };
+
+        // View group
+        window.viewGroup = function(groupId) {
+            window.location.href = `/groups.html#${groupId}`;
+        };
+
+        // Helper functions
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDate(date) {
+            if (!date) return '';
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        }
+    </script>
+</body>
+</html>

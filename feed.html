@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activity Feed - Koby</title>
+    <link rel="icon" href="/assets/Isotype.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .feed-container {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .feed-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #eee;
+        }
+
+        .feed-header h1 {
+            font-size: 28px;
+            margin: 0;
+        }
+
+        .feed-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-mark-read {
+            padding: 8px 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        .btn-mark-read:hover {
+            background: #45a049;
+        }
+
+        .btn-mark-read:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .pull-to-refresh {
+            text-align: center;
+            padding: 16px;
+            color: #666;
+            transition: all 0.3s;
+        }
+
+        .pull-to-refresh.pulling {
+            color: #4CAF50;
+        }
+
+        .pull-to-refresh i {
+            font-size: 20px;
+        }
+
+        .feed-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .feed-item {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: all 0.3s;
+            border-left: 4px solid transparent;
+        }
+
+        .feed-item.unread {
+            border-left-color: #4CAF50;
+            background: #f9fff9;
+        }
+
+        .feed-item:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .feed-item-header {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .feed-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .feed-item-info {
+            flex: 1;
+        }
+
+        .feed-item-actor {
+            font-size: 15px;
+            line-height: 1.5;
+            color: #333;
+        }
+
+        .feed-item-actor a {
+            font-weight: 600;
+            color: #4CAF50;
+            text-decoration: none;
+        }
+
+        .feed-item-actor a:hover {
+            text-decoration: underline;
+        }
+
+        .feed-item-action {
+            color: #666;
+        }
+
+        .feed-item-book {
+            font-style: italic;
+            color: #333;
+        }
+
+        .feed-item-time {
+            font-size: 13px;
+            color: #999;
+            margin-top: 4px;
+        }
+
+        .feed-item-content {
+            margin: 12px 0;
+            padding-left: 60px;
+        }
+
+        .feed-highlight-text {
+            margin: 0;
+            padding: 12px 16px;
+            background: #f5f5f5;
+            border-left: 3px solid #4CAF50;
+            font-size: 15px;
+            line-height: 1.6;
+            color: #333;
+            font-style: normal;
+        }
+
+        .feed-annotation {
+            margin: 12px 0 0 0;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .feed-finished-message {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 15px;
+            color: #666;
+            margin: 0;
+        }
+
+        .feed-finished-message i {
+            color: #4CAF50;
+            font-size: 18px;
+        }
+
+        .feed-item-footer {
+            padding-left: 60px;
+        }
+
+        .feed-view-link {
+            color: #4CAF50;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .feed-view-link:hover {
+            color: #45a049;
+            text-decoration: underline;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+        }
+
+        .empty-state i {
+            font-size: 64px;
+            color: #ddd;
+            margin-bottom: 16px;
+        }
+
+        .empty-state h3 {
+            font-size: 20px;
+            margin-bottom: 8px;
+            color: #666;
+        }
+
+        .empty-state p {
+            color: #999;
+            margin-bottom: 24px;
+        }
+
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary:hover {
+            background: #45a049;
+        }
+
+        .loading-state {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading-state i {
+            font-size: 48px;
+            color: #4CAF50;
+            animation: spin 1s linear infinite;
+        }
+
+        .load-more {
+            text-align: center;
+            padding: 24px;
+        }
+
+        .btn-load-more {
+            padding: 12px 32px;
+            background: white;
+            border: 2px solid #4CAF50;
+            color: #4CAF50;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-load-more:hover {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-load-more:disabled {
+            border-color: #ccc;
+            color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-load-more:disabled:hover {
+            background: white;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .feed-container {
+                padding: 12px;
+            }
+
+            .feed-item-content {
+                padding-left: 0;
+            }
+
+            .feed-item-footer {
+                padding-left: 0;
+            }
+
+            .feed-avatar {
+                width: 40px;
+                height: 40px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="feed-container">
+        <div class="feed-header">
+            <h1>Activity Feed</h1>
+            <div class="feed-actions">
+                <button class="btn-mark-read" id="mark-all-read" style="display: none;">
+                    <i class="fas fa-check-double"></i> Mark all as read
+                </button>
+            </div>
+        </div>
+
+        <div class="pull-to-refresh" id="pull-to-refresh" style="display: none;">
+            <i class="fas fa-arrow-down"></i>
+            <p>Pull to refresh</p>
+        </div>
+
+        <div id="feed-content">
+            <div class="loading-state">
+                <i class="fas fa-spinner"></i>
+                <p>Loading your feed...</p>
+            </div>
+        </div>
+
+        <div class="load-more" id="load-more-container" style="display: none;">
+            <button class="btn-load-more" id="load-more-btn">
+                Load more
+            </button>
+        </div>
+    </div>
+
+    <!-- Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD7WZLlbv9fjBu5iY6qhvVxIuDZ7-tWZLU",
+            authDomain: "koby-7cf5d.firebaseapp.com",
+            projectId: "koby-7cf5d",
+            storageBucket: "koby-7cf5d.appspot.com",
+            messagingSenderId: "431326563244",
+            appId: "1:431326563244:web:a33e4b5b5b5b5b5b5b5b5b"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        let currentUser = null;
+        let isLoading = false;
+
+        // Check authentication
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                window.currentUser = user;
+                await loadFeed();
+                setupInfiniteScroll();
+                setupPullToRefresh();
+                setupMarkAllRead();
+            } else {
+                window.location.href = '/login.html';
+            }
+        });
+
+        async function loadFeed() {
+            try {
+                const feedItems = await window.feedManager.loadFeed(currentUser.uid);
+
+                const feedContent = document.getElementById('feed-content');
+
+                if (feedItems.length === 0) {
+                    feedContent.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-rss"></i>
+                            <h3>Your feed is empty</h3>
+                            <p>Follow other readers to see their highlights and finished books here!</p>
+                            <a href="/" class="btn-primary">Discover Users</a>
+                        </div>
+                    `;
+                    return;
+                }
+
+                renderFeedItems(feedItems);
+
+                // Show load more button if there are more items
+                if (window.feedManager.hasMore) {
+                    document.getElementById('load-more-container').style.display = 'block';
+                }
+
+                // Check for unread items
+                const hasUnread = feedItems.some(item => !item.read);
+                if (hasUnread) {
+                    document.getElementById('mark-all-read').style.display = 'block';
+                }
+
+            } catch (error) {
+                console.error('Error loading feed:', error);
+                document.getElementById('feed-content').innerHTML = '<p>Error loading feed</p>';
+            }
+        }
+
+        function renderFeedItems(items, append = false) {
+            const feedContent = document.getElementById('feed-content');
+
+            let html = '';
+            items.forEach(item => {
+                html += window.feedManager.renderFeedItem(item);
+            });
+
+            if (append) {
+                feedContent.innerHTML += html;
+            } else {
+                feedContent.innerHTML = html;
+            }
+
+            // Add click handlers for marking as read
+            document.querySelectorAll('.feed-item.unread').forEach(item => {
+                item.addEventListener('click', async () => {
+                    const feedId = item.dataset.feedId;
+                    await window.feedManager.markAsRead(currentUser.uid, feedId);
+                    item.classList.remove('unread');
+                    item.classList.add('read');
+
+                    // Check if all items are read
+                    const hasUnread = document.querySelectorAll('.feed-item.unread').length > 0;
+                    if (!hasUnread) {
+                        document.getElementById('mark-all-read').style.display = 'none';
+                    }
+                });
+            });
+        }
+
+        function setupInfiniteScroll() {
+            const loadMoreBtn = document.getElementById('load-more-btn');
+
+            loadMoreBtn.addEventListener('click', async () => {
+                if (isLoading || !window.feedManager.hasMore) return;
+
+                isLoading = true;
+                loadMoreBtn.disabled = true;
+                loadMoreBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+
+                try {
+                    const moreItems = await window.feedManager.loadMoreFeed(currentUser.uid);
+
+                    if (moreItems.length > 0) {
+                        renderFeedItems(moreItems, true);
+                    }
+
+                    if (!window.feedManager.hasMore) {
+                        document.getElementById('load-more-container').style.display = 'none';
+                    }
+
+                } catch (error) {
+                    console.error('Error loading more:', error);
+                } finally {
+                    isLoading = false;
+                    loadMoreBtn.disabled = false;
+                    loadMoreBtn.innerHTML = 'Load more';
+                }
+            });
+        }
+
+        function setupPullToRefresh() {
+            const pullToRefresh = document.getElementById('pull-to-refresh');
+            let startY = 0;
+            let currentY = 0;
+            let isPulling = false;
+
+            document.addEventListener('touchstart', (e) => {
+                if (window.scrollY === 0) {
+                    startY = e.touches[0].clientY;
+                    isPulling = true;
+                }
+            });
+
+            document.addEventListener('touchmove', (e) => {
+                if (!isPulling) return;
+
+                currentY = e.touches[0].clientY;
+                const pullDistance = currentY - startY;
+
+                if (pullDistance > 0 && pullDistance < 100) {
+                    pullToRefresh.style.display = 'block';
+                    pullToRefresh.classList.add('pulling');
+                }
+            });
+
+            document.addEventListener('touchend', async (e) => {
+                if (!isPulling) return;
+
+                const pullDistance = currentY - startY;
+
+                if (pullDistance > 80) {
+                    pullToRefresh.innerHTML = '<i class="fas fa-spinner fa-spin"></i><p>Refreshing...</p>';
+
+                    try {
+                        const feedItems = await window.feedManager.refreshFeed(currentUser.uid);
+                        renderFeedItems(feedItems);
+
+                        if (window.feedManager.hasMore) {
+                            document.getElementById('load-more-container').style.display = 'block';
+                        } else {
+                            document.getElementById('load-more-container').style.display = 'none';
+                        }
+                    } catch (error) {
+                        console.error('Error refreshing feed:', error);
+                    }
+
+                    setTimeout(() => {
+                        pullToRefresh.style.display = 'none';
+                        pullToRefresh.classList.remove('pulling');
+                        pullToRefresh.innerHTML = '<i class="fas fa-arrow-down"></i><p>Pull to refresh</p>';
+                    }, 500);
+                } else {
+                    pullToRefresh.style.display = 'none';
+                    pullToRefresh.classList.remove('pulling');
+                }
+
+                isPulling = false;
+                startY = 0;
+                currentY = 0;
+            });
+        }
+
+        function setupMarkAllRead() {
+            const markAllReadBtn = document.getElementById('mark-all-read');
+
+            markAllReadBtn.addEventListener('click', async () => {
+                markAllReadBtn.disabled = true;
+                markAllReadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Marking...';
+
+                try {
+                    await window.feedManager.markAllAsRead(currentUser.uid);
+
+                    // Update UI
+                    document.querySelectorAll('.feed-item.unread').forEach(item => {
+                        item.classList.remove('unread');
+                        item.classList.add('read');
+                    });
+
+                    markAllReadBtn.style.display = 'none';
+
+                } catch (error) {
+                    console.error('Error marking all as read:', error);
+                    alert('Failed to mark all as read. Please try again.');
+                } finally {
+                    markAllReadBtn.disabled = false;
+                    markAllReadBtn.innerHTML = '<i class="fas fa-check-double"></i> Mark all as read';
+                }
+            });
+        }
+    </script>
+
+    <script type="module" src="/feed-manager.js"></script>
+</body>
+</html>

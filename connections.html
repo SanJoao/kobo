@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connections - Koby</title>
+    <link rel="icon" href="/assets/Isotype.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .connections-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .connections-header {
+            margin-bottom: 32px;
+        }
+
+        .connections-header h1 {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .user-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+        }
+
+        .user-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #eee;
+            margin-bottom: 24px;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.3s;
+            font-weight: 600;
+            color: #666;
+        }
+
+        .tab.active {
+            border-bottom-color: #4CAF50;
+            color: #4CAF50;
+        }
+
+        .tab:hover {
+            color: #4CAF50;
+        }
+
+        .tab-count {
+            background: #f0f0f0;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 14px;
+            margin-left: 8px;
+        }
+
+        .tab.active .tab-count {
+            background: #e8f5e9;
+            color: #4CAF50;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .user-list {
+            display: grid;
+            gap: 16px;
+        }
+
+        .user-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: all 0.3s;
+        }
+
+        .user-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+
+        .user-card-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex: 1;
+        }
+
+        .user-card-avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+        }
+
+        .user-card-details h3 {
+            font-size: 18px;
+            margin: 0 0 4px 0;
+        }
+
+        .user-card-details p {
+            color: #666;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .user-card-stats {
+            display: flex;
+            gap: 16px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .follow-button {
+            padding: 10px 24px;
+            border: 2px solid #4CAF50;
+            background: white;
+            color: #4CAF50;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .follow-button:hover {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .follow-button.following {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .follow-button.following:hover {
+            background: #f44336;
+            border-color: #f44336;
+        }
+
+        .follow-button.following:hover .follow-text::after {
+            content: 'Unfollow';
+            position: absolute;
+            background: inherit;
+            padding-left: 4px;
+        }
+
+        .follow-button.following:hover .follow-text {
+            visibility: hidden;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .empty-state i {
+            font-size: 64px;
+            color: #ddd;
+            margin-bottom: 16px;
+        }
+
+        .empty-state h3 {
+            font-size: 20px;
+            margin-bottom: 8px;
+            color: #666;
+        }
+
+        .empty-state p {
+            color: #999;
+            margin-bottom: 24px;
+        }
+
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary:hover {
+            background: #45a049;
+        }
+
+        .loading-state {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading-state i {
+            font-size: 48px;
+            color: #4CAF50;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .user-card {
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .user-card-stats {
+                flex-direction: column;
+                gap: 8px;
+                width: 100%;
+            }
+
+            .follow-button {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="connections-container">
+        <div class="connections-header">
+            <h1 id="page-title">Connections</h1>
+            <div class="user-info" id="user-info" style="display: none;">
+                <img class="user-avatar" id="user-avatar" src="" alt="">
+                <span class="user-name" id="user-name"></span>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" data-tab="following">
+                Following <span class="tab-count" id="following-count">0</span>
+            </div>
+            <div class="tab" data-tab="followers">
+                Followers <span class="tab-count" id="followers-count">0</span>
+            </div>
+        </div>
+
+        <div class="tab-content active" id="following-content">
+            <div class="loading-state">
+                <i class="fas fa-spinner"></i>
+                <p>Loading...</p>
+            </div>
+        </div>
+
+        <div class="tab-content" id="followers-content">
+            <div class="loading-state">
+                <i class="fas fa-spinner"></i>
+                <p>Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD7WZLlbv9fjBu5iY6qhvVxIuDZ7-tWZLU",
+            authDomain: "koby-7cf5d.firebaseapp.com",
+            projectId: "koby-7cf5d",
+            storageBucket: "koby-7cf5d.appspot.com",
+            messagingSenderId: "431326563244",
+            appId: "1:431326563244:web:a33e4b5b5b5b5b5b5b5b5b"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentUser = null;
+        let targetUserId = null;
+
+        // Get userId from URL params
+        const params = new URLSearchParams(window.location.search);
+        targetUserId = params.get('userId');
+
+        // Check authentication
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                window.currentUser = user;
+
+                // If no userId specified, show current user's connections
+                if (!targetUserId) {
+                    targetUserId = user.uid;
+                }
+
+                await loadUserInfo();
+                await loadConnections();
+            } else {
+                window.location.href = '/login.html';
+            }
+        });
+
+        async function loadUserInfo() {
+            try {
+                const userDoc = await getDoc(doc(db, 'users', targetUserId));
+
+                if (userDoc.exists()) {
+                    const userData = userDoc.data();
+
+                    document.getElementById('user-name').textContent = userData.displayName || 'User';
+                    document.getElementById('user-avatar').src = userData.photoURL || '/assets/default-avatar.png';
+                    document.getElementById('user-info').style.display = 'flex';
+
+                    // Update title
+                    if (targetUserId === currentUser.uid) {
+                        document.getElementById('page-title').textContent = 'My Connections';
+                    } else {
+                        document.getElementById('page-title').textContent = `${userData.displayName || 'User'}'s Connections`;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading user info:', error);
+            }
+        }
+
+        async function loadConnections() {
+            await Promise.all([
+                loadFollowing(),
+                loadFollowers()
+            ]);
+        }
+
+        async function loadFollowing() {
+            try {
+                const following = await window.followManager.getFollowing(targetUserId);
+
+                document.getElementById('following-count').textContent = following.length;
+
+                const container = document.getElementById('following-content');
+
+                if (following.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-user-friends"></i>
+                            <h3>No following yet</h3>
+                            <p>${targetUserId === currentUser.uid ? 'Start following readers to see their highlights in your feed!' : 'This user is not following anyone yet.'}</p>
+                            ${targetUserId === currentUser.uid ? '<a href="/" class="btn-primary">Discover Users</a>' : ''}
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = '<div class="user-list">';
+
+                for (const user of following) {
+                    const isFollowing = await window.followManager.isFollowing(currentUser.uid, user.userId);
+
+                    html += `
+                        <div class="user-card">
+                            <div class="user-card-info">
+                                <img class="user-card-avatar" src="${user.photoURL || '/assets/default-avatar.png'}" alt="${user.displayName}">
+                                <div class="user-card-details">
+                                    <h3><a href="/profile.html?userId=${user.userId}">${user.displayName || 'User'}</a></h3>
+                                    <div class="user-card-stats">
+                                        <span class="stat"><i class="fas fa-book"></i> ${user.bookCount || 0} books</span>
+                                        <span class="stat"><i class="fas fa-highlighter"></i> ${user.highlightCount || 0} highlights</span>
+                                    </div>
+                                </div>
+                            </div>
+                            ${currentUser.uid !== user.userId ? window.followManager.createFollowButton(user.userId, currentUser.uid, isFollowing) : ''}
+                        </div>
+                    `;
+                }
+
+                html += '</div>';
+                container.innerHTML = html;
+
+            } catch (error) {
+                console.error('Error loading following:', error);
+                document.getElementById('following-content').innerHTML = '<p>Error loading following list</p>';
+            }
+        }
+
+        async function loadFollowers() {
+            try {
+                const followers = await window.followManager.getFollowers(targetUserId);
+
+                document.getElementById('followers-count').textContent = followers.length;
+
+                const container = document.getElementById('followers-content');
+
+                if (followers.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-users"></i>
+                            <h3>No followers yet</h3>
+                            <p>${targetUserId === currentUser.uid ? 'Share your highlights to attract followers!' : 'This user has no followers yet.'}</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = '<div class="user-list">';
+
+                for (const user of followers) {
+                    const isFollowing = await window.followManager.isFollowing(currentUser.uid, user.userId);
+
+                    html += `
+                        <div class="user-card">
+                            <div class="user-card-info">
+                                <img class="user-card-avatar" src="${user.photoURL || '/assets/default-avatar.png'}" alt="${user.displayName}">
+                                <div class="user-card-details">
+                                    <h3><a href="/profile.html?userId=${user.userId}">${user.displayName || 'User'}</a></h3>
+                                    <div class="user-card-stats">
+                                        <span class="stat"><i class="fas fa-book"></i> ${user.bookCount || 0} books</span>
+                                        <span class="stat"><i class="fas fa-highlighter"></i> ${user.highlightCount || 0} highlights</span>
+                                    </div>
+                                </div>
+                            </div>
+                            ${currentUser.uid !== user.userId ? window.followManager.createFollowButton(user.userId, currentUser.uid, isFollowing) : ''}
+                        </div>
+                    `;
+                }
+
+                html += '</div>';
+                container.innerHTML = html;
+
+            } catch (error) {
+                console.error('Error loading followers:', error);
+                document.getElementById('followers-content').innerHTML = '<p>Error loading followers list</p>';
+            }
+        }
+
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+
+                // Update active tab
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                // Update active content
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                document.getElementById(`${tabName}-content`).classList.add('active');
+            });
+        });
+    </script>
+
+    <script type="module" src="/follow-manager.js"></script>
+</body>
+</html>

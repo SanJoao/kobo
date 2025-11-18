@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Koby - Offline Dashboard</title>
+    <link rel="icon" href="/assets/Isotype.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/export-styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .offline-banner {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 24px;
+            text-align: center;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .offline-banner-icon {
+            margin-right: 8px;
+        }
+
+        .offline-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+
+        .action-card {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 24px;
+            width: 280px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .action-card:hover {
+            border-color: #4CAF50;
+            transform: translateY(-4px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        }
+
+        .action-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .action-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .action-description {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            color: #4CAF50;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .privacy-notice {
+            background: #f0f8ff;
+            border-left: 4px solid #4CAF50;
+            padding: 16px 20px;
+            margin: 24px 0;
+            border-radius: 4px;
+        }
+
+        .privacy-notice h3 {
+            margin: 0 0 8px 0;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .privacy-notice p {
+            margin: 0;
+            color: #666;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-banner">
+        <span class="offline-banner-icon">🔒</span>
+        <span>Offline Mode - Your data is completely private and stored locally</span>
+    </div>
+
+    <main class="container" style="max-width: 1200px; margin: 0 auto; padding: 40px 20px;">
+        <h1 style="text-align: center; margin-bottom: 12px;">Your Reading Dashboard</h1>
+        <p style="text-align: center; color: #666; margin-bottom: 32px;">All data is processed and stored locally on your device</p>
+
+        <!-- Statistics -->
+        <div class="stats-grid" id="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="stat-books">0</div>
+                <div class="stat-label">Books</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-highlights">0</div>
+                <div class="stat-label">Highlights</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-words">0</div>
+                <div class="stat-label">Vocabulary Words</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-time">0h</div>
+                <div class="stat-label">Time Spent Reading</div>
+            </div>
+        </div>
+
+        <!-- Privacy Notice -->
+        <div class="privacy-notice">
+            <h3>🔐 Complete Privacy Guaranteed</h3>
+            <p>Your data has been processed entirely in your browser. Nothing was uploaded to our servers. You can export your highlights anytime to Obsidian, Notion, Logseq, or as flashcards.</p>
+        </div>
+
+        <!-- Actions -->
+        <h2 style="text-align: center; margin-bottom: 24px;">What would you like to do?</h2>
+        <div class="offline-actions">
+            <div class="action-card" onclick="showHighlights()">
+                <div class="action-icon">📖</div>
+                <div class="action-title">View Highlights</div>
+                <div class="action-description">Browse all your highlights and notes</div>
+            </div>
+
+            <div class="action-card" onclick="window.exportManager.showPKMExportModal()">
+                <div class="action-icon">📚</div>
+                <div class="action-title">Export to PKM</div>
+                <div class="action-description">Export to Obsidian, Notion, or Logseq</div>
+            </div>
+
+            <div class="action-card" onclick="window.exportManager.showFlashcardExportModal()">
+                <div class="action-icon">🎴</div>
+                <div class="action-title">Create Flashcards</div>
+                <div class="action-description">Export vocabulary to Anki or Quizlet</div>
+            </div>
+
+            <div class="action-card" onclick="showAnalytics()">
+                <div class="action-icon">📊</div>
+                <div class="action-title">View Analytics</div>
+                <div class="action-description">See your reading statistics</div>
+            </div>
+        </div>
+
+        <!-- Highlights Display -->
+        <div id="highlights-section" style="display: none; margin-top: 40px;">
+            <h2>Your Highlights</h2>
+            <div style="margin-bottom: 20px;">
+                <select id="book-filter" style="margin-right: 12px; padding: 8px 12px;">
+                    <option value="all">All Books</option>
+                </select>
+                <input type="text" id="search-input" placeholder="Search highlights..." style="padding: 8px 12px; width: 300px;">
+            </div>
+            <div id="highlights-container"></div>
+        </div>
+
+        <!-- Analytics Display -->
+        <div id="analytics-section" style="display: none; margin-top: 40px;">
+            <h2>Reading Analytics</h2>
+            <div id="charts-container">
+                <canvas id="books-chart"></canvas>
+                <canvas id="colors-chart" style="margin-top: 40px;"></canvas>
+            </div>
+        </div>
+
+        <!-- Back to Actions -->
+        <div style="text-align: center; margin-top: 40px;">
+            <button onclick="location.reload()" class="btn-secondary">
+                Upload New Database
+            </button>
+            <button onclick="clearOfflineData()" class="btn-secondary" style="margin-left: 12px; background: #f44336; color: white;">
+                Clear All Data
+            </button>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script type="module" src="/pkm-exporter.js"></script>
+    <script type="module" src="/flashcard-exporter.js"></script>
+    <script type="module" src="/export-manager.js"></script>
+    <script type="module">
+        import { PKMExporter } from './pkm-exporter.js';
+        import { FlashcardExporter } from './flashcard-exporter.js';
+
+        let offlineData = null;
+        let allHighlights = [];
+        let allBooks = [];
+        let allWords = [];
+
+        // Load data on page load
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Try to load from sessionStorage first
+                const sessionData = sessionStorage.getItem('offlineData');
+                if (sessionData) {
+                    offlineData = JSON.parse(sessionData);
+                } else {
+                    // Try to load from IndexedDB
+                    offlineData = await loadFromIndexedDB();
+                }
+
+                if (!offlineData || !offlineData.books) {
+                    alert('No offline data found. Please upload your database first.');
+                    window.location.href = '/upload.html';
+                    return;
+                }
+
+                allBooks = offlineData.books || [];
+                allHighlights = offlineData.highlights || [];
+                allWords = offlineData.words || [];
+
+                // Initialize export manager
+                if (window.exportManager) {
+                    window.exportManager.init(allBooks, allHighlights, allWords);
+                }
+
+                // Display statistics
+                displayStatistics();
+
+                // Populate book filter
+                populateBookFilter();
+
+            } catch (error) {
+                console.error('Error loading offline data:', error);
+                alert('Error loading data. Please try uploading again.');
+                window.location.href = '/upload.html';
+            }
+        });
+
+        function displayStatistics() {
+            document.getElementById('stat-books').textContent = allBooks.length;
+            document.getElementById('stat-highlights').textContent = allHighlights.length;
+            document.getElementById('stat-words').textContent = allWords.length;
+
+            const totalMinutes = allBooks.reduce((sum, book) => sum + (book.time_spent_reading || 0), 0);
+            const totalHours = Math.round(totalMinutes / 60);
+            document.getElementById('stat-time').textContent = totalHours + 'h';
+        }
+
+        function populateBookFilter() {
+            const bookFilter = document.getElementById('book-filter');
+            bookFilter.innerHTML = '<option value="all">All Books</option>';
+
+            const uniqueBooks = [...new Set(allHighlights.map(h => h.book_title))];
+            uniqueBooks.sort();
+
+            uniqueBooks.forEach(title => {
+                if (title) {
+                    const option = document.createElement('option');
+                    option.value = title;
+                    option.textContent = title;
+                    bookFilter.appendChild(option);
+                }
+            });
+        }
+
+        window.showHighlights = function() {
+            document.getElementById('highlights-section').style.display = 'block';
+            document.getElementById('analytics-section').style.display = 'none';
+            document.querySelector('.offline-actions').style.display = 'none';
+
+            filterHighlights();
+
+            // Add event listeners
+            document.getElementById('book-filter').addEventListener('change', filterHighlights);
+            document.getElementById('search-input').addEventListener('input', filterHighlights);
+        };
+
+        function filterHighlights() {
+            const bookFilter = document.getElementById('book-filter').value;
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+
+            let filtered = allHighlights;
+
+            if (bookFilter !== 'all') {
+                filtered = filtered.filter(h => h.book_title === bookFilter);
+            }
+
+            if (searchTerm) {
+                filtered = filtered.filter(h =>
+                    (h.text && h.text.toLowerCase().includes(searchTerm)) ||
+                    (h.annotation && h.annotation.toLowerCase().includes(searchTerm))
+                );
+            }
+
+            displayHighlights(filtered);
+        }
+
+        function displayHighlights(highlights) {
+            const container = document.getElementById('highlights-container');
+            container.innerHTML = '';
+
+            if (highlights.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #999;">No highlights found.</p>';
+                return;
+            }
+
+            highlights.forEach(highlight => {
+                const card = document.createElement('div');
+                card.className = 'highlight-card';
+                card.style.cssText = 'background: white; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);';
+
+                const colorMap = {
+                    0: 'Yellow', 1: 'Pink', 2: 'Blue', 3: 'Green', 4: 'No Color'
+                };
+
+                card.innerHTML = `
+                    <div style="color: #999; font-size: 12px; margin-bottom: 8px;">
+                        ${highlight.book_title || 'Unknown Book'} • ${colorMap[highlight.color] || 'Yellow'}
+                    </div>
+                    <div style="font-size: 16px; line-height: 1.6; margin-bottom: 12px;">
+                        "${highlight.text}"
+                    </div>
+                    ${highlight.annotation ? `
+                        <div style="background: #f9f9f9; padding: 12px; border-left: 3px solid #4CAF50; font-style: italic; color: #666;">
+                            ${highlight.annotation}
+                        </div>
+                    ` : ''}
+                `;
+
+                container.appendChild(card);
+            });
+        }
+
+        window.showAnalytics = function() {
+            document.getElementById('highlights-section').style.display = 'none';
+            document.getElementById('analytics-section').style.display = 'block';
+            document.querySelector('.offline-actions').style.display = 'none';
+
+            createCharts();
+        };
+
+        function createCharts() {
+            // Simple bar chart of books by time spent
+            const booksCtx = document.getElementById('books-chart').getContext('2d');
+
+            const sortedBooks = allBooks
+                .filter(b => b.time_spent_reading > 0)
+                .sort((a, b) => b.time_spent_reading - a.time_spent_reading)
+                .slice(0, 10);
+
+            new Chart(booksCtx, {
+                type: 'bar',
+                data: {
+                    labels: sortedBooks.map(b => b.title || 'Unknown'),
+                    datasets: [{
+                        label: 'Hours Spent Reading',
+                        data: sortedBooks.map(b => (b.time_spent_reading / 60).toFixed(1)),
+                        backgroundColor: 'rgba(76, 175, 80, 0.7)',
+                        borderColor: 'rgba(76, 175, 80, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Top 10 Books by Time Spent Reading'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            // Color distribution pie chart
+            const colorsCtx = document.getElementById('colors-chart').getContext('2d');
+            const colorCounts = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
+
+            allHighlights.forEach(h => {
+                const color = h.color !== undefined ? h.color : 0;
+                colorCounts[color]++;
+            });
+
+            new Chart(colorsCtx, {
+                type: 'pie',
+                data: {
+                    labels: ['Yellow', 'Pink', 'Blue', 'Green', 'No Color'],
+                    datasets: [{
+                        data: Object.values(colorCounts),
+                        backgroundColor: [
+                            'rgba(255, 235, 59, 0.7)',
+                            'rgba(233, 30, 99, 0.7)',
+                            'rgba(33, 150, 243, 0.7)',
+                            'rgba(76, 175, 80, 0.7)',
+                            'rgba(158, 158, 158, 0.7)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Highlight Colors Distribution'
+                        }
+                    }
+                }
+            });
+        }
+
+        window.clearOfflineData = async function() {
+            if (confirm('Are you sure you want to clear all offline data? This cannot be undone.')) {
+                sessionStorage.removeItem('offlineData');
+                sessionStorage.removeItem('offlineMode');
+
+                // Clear IndexedDB
+                const dbName = 'KobyOfflineDB';
+                indexedDB.deleteDatabase(dbName);
+
+                alert('All offline data has been cleared.');
+                window.location.href = '/upload.html';
+            }
+        };
+
+        async function loadFromIndexedDB() {
+            const dbName = 'KobyOfflineDB';
+            const storeName = 'offlineData';
+
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(dbName, 1);
+
+                request.onsuccess = (event) => {
+                    const db = event.target.result;
+
+                    if (!db.objectStoreNames.contains(storeName)) {
+                        resolve(null);
+                        return;
+                    }
+
+                    const transaction = db.transaction([storeName], 'readonly');
+                    const store = transaction.objectStore(storeName);
+
+                    const booksReq = store.get('books');
+                    const highlightsReq = store.get('highlights');
+                    const wordsReq = store.get('words');
+
+                    transaction.oncomplete = () => {
+                        if (booksReq.result && highlightsReq.result) {
+                            resolve({
+                                books: booksReq.result,
+                                highlights: highlightsReq.result,
+                                words: wordsReq.result || []
+                            });
+                        } else {
+                            resolve(null);
+                        }
+                    };
+
+                    transaction.onerror = () => reject(transaction.error);
+                };
+
+                request.onerror = () => reject(request.error);
+            });
+        }
+    </script>
+</body>
+</html>

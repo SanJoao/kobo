@@ -32,6 +32,15 @@ function renderProfile(data, isOwner) {
         </div>
         <div id="profile-view" class="tab-content active">
             <h2 id="profile-nickname">${data.nickname || 'Anonymous'}</h2>
+            <div class="profile-connections">
+                <a href="/connections.html?userId=${profileSection.dataset.userId}" class="connection-stat">
+                    <strong id="follower-count">0</strong> <span>followers</span>
+                </a>
+                <a href="/connections.html?userId=${profileSection.dataset.userId}" class="connection-stat">
+                    <strong id="following-count">0</strong> <span>following</span>
+                </a>
+            </div>
+            <div id="follow-button-container" style="margin: 16px 0;"></div>
             <div id="profile-description">${descriptionHtml}</div>
             <div id="profile-social">
                 ${data.twitter ? `<a href="${data.twitter}" target="_blank"><i class="fab fa-twitter"></i></a>` : ''}
@@ -51,6 +60,18 @@ function renderProfile(data, isOwner) {
                 ${data.fable ? `<a href="${data.fable}" target="_blank"><i class="fas fa-feather-alt"></i></a>` : ''}
             </div>
             ${isOwner ? '<button id="edit-profile-btn">Edit Profile</button>' : ''}
+            ${isOwner ? `
+            <div class="export-buttons-container">
+                <button class="export-button" onclick="window.exportManager.showPKMExportModal()">
+                    <span class="export-button-icon">📚</span>
+                    Export to PKM
+                </button>
+                <button class="export-button secondary" onclick="window.exportManager.showFlashcardExportModal()">
+                    <span class="export-button-icon">🎴</span>
+                    Export Flashcards
+                </button>
+            </div>
+            ` : ''}
         </div>
         <div id="liked-highlights" class="tab-content">
             <h3>Liked Highlights</h3>
@@ -226,6 +247,44 @@ function renderProfile(data, isOwner) {
             }
         });
     });
+
+    // Initialize follower system
+    initializeFollowSystem(isOwner);
+}
+
+async function initializeFollowSystem(isOwner) {
+    const userId = profileSection.dataset.userId;
+    const currentUser = auth.currentUser;
+
+    if (!userId || !window.followManager) {
+        return;
+    }
+
+    try {
+        // Load follower/following counts
+        const followerCount = await window.followManager.getFollowerCount(userId);
+        const followingCount = await window.followManager.getFollowingCount(userId);
+
+        document.getElementById('follower-count').textContent = followerCount;
+        document.getElementById('following-count').textContent = followingCount;
+
+        // Add follow button if not owner
+        if (!isOwner && currentUser) {
+            const isFollowing = await window.followManager.isFollowing(currentUser.uid, userId);
+            const followButtonContainer = document.getElementById('follow-button-container');
+
+            if (followButtonContainer) {
+                followButtonContainer.innerHTML = window.followManager.createFollowButton(
+                    userId,
+                    currentUser.uid,
+                    isFollowing,
+                    { class: 'profile-follow-button' }
+                );
+            }
+        }
+    } catch (error) {
+        console.error('Error initializing follow system:', error);
+    }
 }
 
 async function loadLikedHighlights(userId) {

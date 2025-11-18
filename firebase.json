@@ -8,6 +8,10 @@
     ],
     "rewrites": [
       {
+        "source": "/h/**",
+        "destination": "/public-highlight.html"
+      },
+      {
         "source": "/user/**",
         "destination": "/index.html"
       },
