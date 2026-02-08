@@ -3,13 +3,13 @@
  * Handles reading statistics, streaks, and insights
  */
 
-import { getFirestore, collection, query, where, orderBy, limit, getDocs, doc, getDoc, setDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { db, auth } from "./firebase-config.js";
+import { collection, query, where, orderBy, limit, getDocs, doc, getDoc, setDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 export class AnalyticsManager {
     constructor() {
-        this.db = getFirestore();
-        this.auth = getAuth();
+        this.db = db;
+        this.auth = auth;
     }
 
     /**
@@ -258,7 +258,7 @@ export class AnalyticsManager {
             console.log('[AnalyticsManager] Generating insights');
 
             const stats = await this.getUserStats(userId);
-            const activity = await getReadingActivity(userId);
+            const activity = await this.getReadingActivity(userId);
 
             const insights = [];
 

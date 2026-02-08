@@ -3,11 +3,11 @@
  * Handles notification bell and dropdown
  */
 
-import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { auth } from "./firebase-config.js";
 
 export class NotificationUI {
     constructor() {
-        this.auth = getAuth();
+        this.auth = auth;
         this.isOpen = false;
         this.unsubscribeNotifications = null;
         this.unsubscribeCount = null;
@@ -227,11 +227,11 @@ export class NotificationUI {
 window.notificationUI = new NotificationUI();
 
 // Global functions for onclick handlers
-window.toggleNotificationDropdown = function() {
+window.toggleNotificationDropdown = function () {
     window.notificationUI.toggleDropdown();
 };
 
-window.markAllNotificationsRead = async function() {
+window.markAllNotificationsRead = async function () {
     await window.notificationUI.markAllAsRead();
 };
 

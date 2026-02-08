@@ -11,78 +11,58 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    function getUserSettings(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)/settings/privacy).data;
+    // Safely get user settings, returning null if they don't exist
+    function getUserSettingsSafe(userId) {
+      let settingsPath = /databases/$(database)/documents/users/$(userId)/settings/privacy;
+      return exists(settingsPath) ? get(settingsPath).data : null;
     }
 
     function isFriend(userId, viewerId) {
       // Check if viewerId follows userId (simplified version)
-      // In production, you'd check both directions for "friends" relationship
       return exists(/databases/$(database)/documents/users/$(userId)/followers/$(viewerId));
+    }
+
+    // Helper to check visibility with fallback to public
+    function checkVisibility(visibility, userId) {
+      return visibility == 'public' 
+        || visibility == null  // Fallback if visibility not set
+        || (isAuthenticated() && isOwner(userId))
+        || (visibility == 'friends' && isAuthenticated() && isFriend(userId, request.auth.uid));
     }
 
     function canViewProfile(userId) {
       // Owner can always view own profile
-      if (isOwner(userId)) return true;
-
-      // Get privacy settings (default to public if not set)
-      let settings = getUserSettings(userId);
-      let visibility = settings.get('profileVisibility', 'public');
-
-      return visibility == 'public'
-        || (visibility == 'friends' && isAuthenticated() && isFriend(userId, request.auth.uid))
-        || (visibility == 'private' && isOwner(userId));
+      // If no settings exist, default to public
+      let settings = getUserSettingsSafe(userId);
+      let visibility = settings != null ? settings.get('profileVisibility', 'public') : 'public';
+      return checkVisibility(visibility, userId);
     }
 
     function canViewHighlight(userId, highlightData) {
       // Owner can always view own highlights
-      if (isOwner(userId)) return true;
-
-      // Check per-highlight visibility if set
-      if (highlightData.keys().hasAny(['visibility'])) {
-        let visibility = highlightData.visibility;
-
-        if (visibility == 'private') {
-          return false;
-        } else if (visibility == 'friends') {
-          return isAuthenticated() && isFriend(userId, request.auth.uid);
-        } else {
-          return true; // public
-        }
-      }
-
-      // Fall back to user's default highlight visibility setting
-      let settings = getUserSettings(userId);
-      let defaultVisibility = settings.get('highlightVisibilityDefault', 'public');
-
-      return defaultVisibility == 'public'
-        || (defaultVisibility == 'friends' && isAuthenticated() && isFriend(userId, request.auth.uid))
-        || (defaultVisibility == 'private' && isOwner(userId));
+      // Check per-highlight visibility if set, otherwise use default (public)
+      let settings = getUserSettingsSafe(userId);
+      let defaultVisibility = settings != null ? settings.get('highlightVisibilityDefault', 'public') : 'public';
+      let highlightVisibility = highlightData.get('visibility', defaultVisibility);
+      return checkVisibility(highlightVisibility, userId);
     }
 
     function canViewStats(userId) {
-      if (isOwner(userId)) return true;
-
-      let settings = getUserSettings(userId);
-      let visibility = settings.get('statsVisibility', 'public');
-
-      return visibility == 'public'
-        || (visibility == 'friends' && isAuthenticated() && isFriend(userId, request.auth.uid));
+      let settings = getUserSettingsSafe(userId);
+      let visibility = settings != null ? settings.get('statsVisibility', 'public') : 'public';
+      return checkVisibility(visibility, userId);
     }
 
     function canViewBooks(userId) {
-      if (isOwner(userId)) return true;
-
-      let settings = getUserSettings(userId);
-      let visibility = settings.get('booksVisibility', 'public');
-
-      return visibility == 'public'
-        || (visibility == 'friends' && isAuthenticated() && isFriend(userId, request.auth.uid));
+      let settings = getUserSettingsSafe(userId);
+      let visibility = settings != null ? settings.get('booksVisibility', 'public') : 'public';
+      return checkVisibility(visibility, userId);
     }
 
-    // User documents
+    // User documents - allow read for social proof counting
     match /users/{userId} {
-      allow read: if canViewProfile(userId);
+      // Allow listing users for social proof (counting)
+      allow read: if true;
       allow write: if isOwner(userId);
 
       // Settings subcollection
@@ -99,6 +79,8 @@ service cloud.firestore {
 
       // Highlights subcollection
       match /highlights/{highlightId} {
+        // For individual highlight reads, check visibility
+        // For landing page, we use collectionGroup query which has its own rules
         allow read: if canViewHighlight(userId, resource.data);
         allow write: if isOwner(userId);
 
@@ -109,7 +91,25 @@ service cloud.firestore {
 
       // Words/vocabulary subcollection
       match /words/{wordId} {
-        allow read: if canViewBooks(userId); // Same visibility as books
+        allow read: if true; // Allow reading for social proof counting
+        allow write: if isOwner(userId);
+      }
+
+      // Feed subcollection
+      match /feed/{feedId} {
+        allow read: if isOwner(userId);
+        allow write: if false; // Written by Cloud Functions only
+      }
+
+      // Notifications subcollection
+      match /notifications/{notificationId} {
+        allow read: if isOwner(userId);
+        allow write: if false; // Written by Cloud Functions only
+      }
+
+      // Groups user has joined
+      match /groups/{groupId} {
+        allow read: if isAuthenticated();
         allow write: if isOwner(userId);
       }
 
@@ -126,12 +126,10 @@ service cloud.firestore {
       }
     }
 
-    // CollectionGroup queries for highlights (used in public feed)
+    // CollectionGroup queries for highlights (used in public feed/landing page)
     match /{path=**}/highlights/{highlightId} {
-      // For collectionGroup queries, we can't easily check privacy settings
-      // So we require highlights to have visibility field for public access
-      allow read: if resource.data.get('visibility', 'public') == 'public' &&
-                    resource.data.get('showInFeed', true) == true;
+      // Allow read if highlight is public or visibility not set (default public)
+      allow read: if resource.data.get('visibility', 'public') == 'public';
     }
 
     // CollectionGroup queries for books
@@ -155,5 +153,27 @@ service cloud.firestore {
       allow read: if true; // Public by definition
       allow write: if isAuthenticated(); // Any authenticated user can create public links
     }
+
+    // Reading groups
+    match /groups/{groupId} {
+      allow read: if true; // Public groups are readable by anyone
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && 
+        get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role == 'admin';
+
+      // Group members
+      match /members/{memberId} {
+        allow read: if true;
+        allow write: if isAuthenticated();
+      }
+
+      // Group posts
+      match /posts/{postId} {
+        allow read: if true;
+        allow write: if isAuthenticated() && 
+          exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid));
+      }
+    }
   }
 }
+

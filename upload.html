@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,9 +15,10 @@
             padding: 30px;
             background: #fff;
             border-radius: 8px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
             text-align: center;
         }
+
         .instructions {
             text-align: left;
             margin-bottom: 30px;
@@ -25,12 +27,16 @@
             border-radius: 8px;
             border: 1px solid #eee;
         }
+
         .instructions h2 {
             margin-top: 0;
         }
-        .instructions p, .instructions li {
+
+        .instructions p,
+        .instructions li {
             line-height: 1.6;
         }
+
         #upload-button {
             padding: 15px 30px;
             font-size: 1.2em;
@@ -41,9 +47,11 @@
             border-radius: 5px;
             transition: background-color 0.3s;
         }
+
         #upload-button:hover {
             background-color: #0056b3;
         }
+
         #upload-status {
             margin-top: 20px;
             font-weight: bold;
@@ -88,10 +96,10 @@
         .mode-card:hover .mode-card-content {
             border-color: #4CAF50;
             transform: translateY(-4px);
-            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
         }
 
-        .mode-card input[type="radio"]:checked + .mode-card-content {
+        .mode-card input[type="radio"]:checked+.mode-card-content {
             border-color: #4CAF50;
             background: rgba(76, 175, 80, 0.05);
             box-shadow: 0 4px 15px rgba(76, 175, 80, 0.2);
@@ -209,8 +217,133 @@
             color: #666;
             font-weight: 600;
         }
+
+        /* Book Management Styles */
+        .book-management-section {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 1px solid #eee;
+            text-align: left;
+        }
+
+        .book-management-section h3 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .book-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+
+        .book-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid #eee;
+            gap: 16px;
+        }
+
+        .book-item:last-child {
+            border-bottom: none;
+        }
+
+        .book-item.new-book {
+            background: rgba(76, 175, 80, 0.1);
+        }
+
+        .book-item.new-book::before {
+            content: 'NEW';
+            background: #4CAF50;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .book-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .book-title {
+            font-weight: 600;
+            color: #333;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .book-stats {
+            font-size: 12px;
+            color: #888;
+            margin-top: 4px;
+        }
+
+        .visibility-toggles {
+            display: flex;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .toggle-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .toggle-group input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .save-visibility-btn {
+            display: block;
+            width: 100%;
+            max-width: 300px;
+            margin: 20px auto 0;
+            padding: 12px 24px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .save-visibility-btn:hover {
+            background: #45a049;
+        }
+
+        .save-visibility-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .no-books-message {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+
+        .loading-books {
+            text-align: center;
+            padding: 30px;
+            color: #888;
+        }
     </style>
 </head>
+
 <body>
     <header>
         <!-- Header content will be loaded dynamically -->
@@ -286,8 +419,11 @@
                 <p>Follow these steps to locate your Kobo database file:</p>
                 <ol>
                     <li>Connect your Kobo eReader to your computer.</li>
-                    <li>Open the Kobo drive. You should see a hidden folder named <strong>.kobo</strong> (you may need to enable "Show hidden files" on your computer).</li>
-                    <li>Inside the <strong>.kobo</strong> folder, find the file named <strong>KoboReader.sqlite</strong>.</li>
+                    <li>Open the Kobo drive. You should see a hidden folder named <strong>.kobo</strong> (you may need
+                        to enable "Show hidden files" on your computer).</li>
+                    <li>Inside the <strong>.kobo</strong> folder, find the file named
+                        <strong>KoboReader.sqlite</strong>.
+                    </li>
                 </ol>
                 <p>This file contains all your highlights and notes.</p>
             </div>
@@ -304,13 +440,31 @@
                 </div>
                 <p id="progress-text">Processing...</p>
             </div>
+
+            <!-- Book Visibility Management -->
+            <div id="book-management-section" class="book-management-section">
+                <h3>📚 Manage Book Visibility</h3>
+                <p style="text-align: center; color: #666; margin-bottom: 16px;">
+                    Control which books and their highlights are visible
+                </p>
+                <div id="book-list" class="book-list">
+                    <div class="loading-books">
+                        <i class="fas fa-spinner fa-spin"></i> Loading your books...
+                    </div>
+                </div>
+                <button id="save-visibility-btn" class="save-visibility-btn" disabled>
+                    Save Changes
+                </button>
+            </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/sql.js@1.8.0/dist/sql-wasm.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/2.1.0/showdown.min.js"></script>
     <script type="module" src="/offline-processor.js"></script>
+    <script type="module" src="/book-visibility-manager.js"></script>
     <script type="module" src="/script.js"></script>
     <script type="module" src="/upload.js"></script>
 </body>
+
 </html>

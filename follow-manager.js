@@ -3,13 +3,14 @@
  * Handles follow/unfollow operations and follower/following lists
  */
 
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
-import { getFirestore, collection, query, getDocs, doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { db, functions } from "./firebase-config.js";
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
+import { collection, query, getDocs, doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 export class FollowManager {
     constructor() {
-        this.functions = getFunctions();
-        this.db = getFirestore();
+        this.functions = functions;
+        this.db = db;
         this.followUserFn = httpsCallable(this.functions, 'followUser');
         this.unfollowUserFn = httpsCallable(this.functions, 'unfollowUser');
         this.followingCache = new Map();
@@ -292,7 +293,7 @@ export class FollowManager {
 window.followManager = new FollowManager();
 
 // Global function for button clicks
-window.handleFollowButtonClick = async function(button) {
+window.handleFollowButtonClick = async function (button) {
     const currentUser = window.currentUser || window.auth?.currentUser;
     if (!currentUser) {
         alert('Please log in to follow users');

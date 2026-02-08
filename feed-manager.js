@@ -3,11 +3,12 @@
  * Handles activity feed operations and real-time updates
  */
 
-import { getFirestore, collection, query, orderBy, limit, getDocs, doc, updateDoc, onSnapshot, where, startAfter } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { db } from "./firebase-config.js";
+import { collection, query, orderBy, limit, getDocs, doc, updateDoc, onSnapshot, where, startAfter } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 export class FeedManager {
     constructor() {
-        this.db = getFirestore();
+        this.db = db;
         this.feedCache = [];
         this.lastVisible = null;
         this.hasMore = true;

@@ -3,13 +3,13 @@
  * Handles search across highlights, users, groups, and books
  */
 
-import { getFirestore, collection, query, where, orderBy, limit, getDocs, collectionGroup } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { db, auth } from "./firebase-config.js";
+import { collection, query, where, orderBy, limit, getDocs, collectionGroup } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 export class SearchManager {
     constructor() {
-        this.db = getFirestore();
-        this.auth = getAuth();
+        this.db = db;
+        this.auth = auth;
         this.searchCache = new Map();
         this.cacheTTL = 5 * 60 * 1000; // 5 minutes
     }
@@ -34,41 +34,58 @@ export class SearchManager {
             }
 
             // Firestore doesn't support full-text search, so we need to:
-            // 1. Load public highlights
+            // 1. Load highlights (visibility is checked by Firestore rules)
             // 2. Filter client-side
 
             const highlightsQuery = query(
                 collectionGroup(this.db, 'highlights'),
-                where('is_public', '==', true),
                 orderBy('date_created', 'desc'),
                 limit(200) // Load more for better search results
             );
 
             const snapshot = await getDocs(highlightsQuery);
 
-            const allHighlights = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                date_created: doc.data().date_created?.toDate() || new Date()
-            }));
+            const allHighlights = snapshot.docs.map(doc => {
+                const data = doc.data();
+                let dateCreated = new Date();
+
+                // Handle various date formats
+                if (data.date_created) {
+                    if (typeof data.date_created.toDate === 'function') {
+                        dateCreated = data.date_created.toDate();
+                    } else if (data.date_created instanceof Date) {
+                        dateCreated = data.date_created;
+                    } else if (typeof data.date_created === 'string') {
+                        dateCreated = new Date(data.date_created);
+                    }
+                }
+
+                return {
+                    id: doc.id,
+                    userId: doc.ref.parent.parent.id, // Extract userId from path
+                    ...data,
+                    date_created: dateCreated
+                };
+            });
 
             // Client-side filtering
             const filtered = allHighlights.filter(highlight => {
-                const text = (highlight.text || '').toLowerCase();
-                const title = (highlight.title || '').toLowerCase();
-                const author = (highlight.attribution || '').toLowerCase();
+                // Handle both PascalCase (Kobo format) and lowercase field names
+                const text = (highlight.Text || highlight.text || '').toLowerCase();
+                const title = (highlight.Title || highlight.title || '').toLowerCase();
+                const author = (highlight.Attribution || highlight.attribution || '').toLowerCase();
 
                 return text.includes(searchLower) ||
-                       title.includes(searchLower) ||
-                       author.includes(searchLower);
+                    title.includes(searchLower) ||
+                    author.includes(searchLower);
             });
 
             // Sort by relevance (exact matches first)
             filtered.sort((a, b) => {
-                const aText = (a.text || '').toLowerCase();
-                const bText = (b.text || '').toLowerCase();
-                const aTitle = (a.title || '').toLowerCase();
-                const bTitle = (b.title || '').toLowerCase();
+                const aText = (a.Text || a.text || '').toLowerCase();
+                const bText = (b.Text || b.text || '').toLowerCase();
+                const aTitle = (a.Title || a.title || '').toLowerCase();
+                const bTitle = (b.Title || b.title || '').toLowerCase();
 
                 // Exact text match gets highest priority
                 const aExactText = aText === searchLower;
@@ -223,9 +240,9 @@ export class SearchManager {
                 const tagString = tags.join(' ').toLowerCase();
 
                 return name.includes(searchLower) ||
-                       description.includes(searchLower) ||
-                       bookTitle.includes(searchLower) ||
-                       tagString.includes(searchLower);
+                    description.includes(searchLower) ||
+                    bookTitle.includes(searchLower) ||
+                    tagString.includes(searchLower);
             });
 
             // Sort by relevance
@@ -280,40 +297,67 @@ export class SearchManager {
             }
 
             // Load all books across all users
+            // Note: Increased limit to catch more books
             const booksQuery = query(
                 collectionGroup(this.db, 'books'),
-                limit(200)
+                limit(500)
             );
 
             const snapshot = await getDocs(booksQuery);
+            console.log('[SearchManager] Loaded', snapshot.docs.length, 'books from Firestore');
 
-            const allBooks = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
+            // Debug: Check if the searched term exists in any loaded book
+            const matchCheck = snapshot.docs.filter(doc => {
+                const data = doc.data();
+                const title = (data.title || data.Title || '').toLowerCase();
+                return title.includes(searchLower);
+            });
+            console.log('[SearchManager] Books matching "' + searchTerm + '" before processing:', matchCheck.length);
+
+            const allBooks = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    userId: doc.ref.parent.parent?.id,
+                    ...data,
+                    // Normalize title field - handle both PascalCase and lowercase
+                    normalizedTitle: data.Title || data.title || data.BookTitle || ''
+                };
+            });
+
+            // Debug: Log first few book titles
+            if (allBooks.length > 0) {
+                console.log('[SearchManager] Sample book data:', allBooks.slice(0, 3).map(b => ({
+                    id: b.id,
+                    title: b.title,
+                    Title: b.Title,
+                    normalizedTitle: b.normalizedTitle
+                })));
+            }
 
             // Deduplicate by title (same book might be in multiple users' libraries)
             const uniqueBooks = new Map();
             allBooks.forEach(book => {
-                const title = (book.title || '').toLowerCase();
-                if (!uniqueBooks.has(title) ||
-                    (book.percent_read || 0) > (uniqueBooks.get(title).percent_read || 0)) {
+                const title = (book.normalizedTitle || '').toLowerCase();
+                if (title && (!uniqueBooks.has(title) ||
+                    (book.percent_read || 0) > (uniqueBooks.get(title).percent_read || 0))) {
                     uniqueBooks.set(title, book);
                 }
             });
 
             const deduped = Array.from(uniqueBooks.values());
+            console.log('[SearchManager] Unique books after dedup:', deduped.length);
 
             // Client-side filtering
             const filtered = deduped.filter(book => {
-                const title = (book.title || '').toLowerCase();
+                const title = (book.normalizedTitle || '').toLowerCase();
                 return title.includes(searchLower);
             });
 
             // Sort by relevance
             filtered.sort((a, b) => {
-                const aTitle = (a.title || '').toLowerCase();
-                const bTitle = (b.title || '').toLowerCase();
+                const aTitle = (a.normalizedTitle || '').toLowerCase();
+                const bTitle = (b.normalizedTitle || '').toLowerCase();
 
                 // Starts with search term gets priority
                 const aStartsWith = aTitle.startsWith(searchLower);

@@ -3,13 +3,14 @@
  * Handles comment operations and real-time updates
  */
 
-import { getFirestore, collection, query, orderBy, getDocs, onSnapshot, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
+import { db, functions } from "./firebase-config.js";
+import { collection, query, orderBy, getDocs, onSnapshot, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 
 export class CommentManager {
     constructor() {
-        this.db = getFirestore();
-        this.functions = getFunctions();
+        this.db = db;
+        this.functions = functions;
         this.createCommentFn = httpsCallable(this.functions, 'createComment');
         this.updateCommentFn = httpsCallable(this.functions, 'updateComment');
         this.deleteCommentFn = httpsCallable(this.functions, 'deleteComment');

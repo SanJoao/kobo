@@ -3,13 +3,14 @@
  * Handles notification operations and real-time updates
  */
 
-import { getFirestore, collection, query, orderBy, limit, getDocs, onSnapshot, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
+import { db, functions } from "./firebase-config.js";
+import { collection, query, orderBy, limit, getDocs, onSnapshot, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 
 export class NotificationManager {
     constructor() {
-        this.db = getFirestore();
-        this.functions = getFunctions();
+        this.db = db;
+        this.functions = functions;
         this.markReadFn = httpsCallable(this.functions, 'markNotificationRead');
         this.markAllReadFn = httpsCallable(this.functions, 'markAllNotificationsRead');
         this.unsubscribe = null;
@@ -265,7 +266,7 @@ export class NotificationManager {
 window.notificationManager = new NotificationManager();
 
 // Global handler for notification clicks
-window.handleNotificationClick = async function(notificationId, link) {
+window.handleNotificationClick = async function (notificationId, link) {
     // Mark as read
     await window.notificationManager.markAsRead(notificationId);
 

@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Search - Koby</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
+
 <body>
     <header id="header" class="header"></header>
 
@@ -17,12 +18,10 @@
             <div class="search-header">
                 <div class="search-input-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text"
-                           id="search-input"
-                           class="search-input"
-                           placeholder="Search highlights, books, users, or groups..."
-                           autofocus>
-                    <button class="btn-clear-search" id="clear-search-btn" style="display: none;" onclick="clearSearch()">
+                    <input type="text" id="search-input" class="search-input"
+                        placeholder="Search highlights, books, users, or groups..." autofocus>
+                    <button class="btn-clear-search" id="clear-search-btn" style="display: none;"
+                        onclick="clearSearch()">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
@@ -207,7 +206,7 @@
         });
 
         // Clear search
-        window.clearSearch = function() {
+        window.clearSearch = function () {
             searchInput.value = '';
             clearBtn.style.display = 'none';
             lastSearchTerm = '';
@@ -215,7 +214,7 @@
         };
 
         // Set search filter
-        window.setSearchFilter = function(type) {
+        window.setSearchFilter = function (type) {
             currentFilter = type;
 
             // Update active filter button
@@ -521,24 +520,24 @@
         }
 
         // Search from suggestion
-        window.searchFromSuggestion = function(term) {
+        window.searchFromSuggestion = function (term) {
             searchInput.value = term;
             clearBtn.style.display = 'block';
             performSearch(term);
         };
 
         // View highlight
-        window.viewHighlight = function(userId, highlightId) {
+        window.viewHighlight = function (userId, highlightId) {
             window.location.href = `/user/${userId}?highlight=${highlightId}`;
         };
 
         // View user profile
-        window.viewUserProfile = function(userId) {
+        window.viewUserProfile = function (userId) {
             window.location.href = `/profile.html?userId=${userId}`;
         };
 
         // View group
-        window.viewGroup = function(groupId) {
+        window.viewGroup = function (groupId) {
             window.location.href = `/groups.html#${groupId}`;
         };
 
@@ -559,4 +558,5 @@
         }
     </script>
 </body>
+
 </html>

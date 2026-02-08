@@ -3,15 +3,15 @@
  * Handles reading group operations
  */
 
-import { getFirestore, collection, query, where, orderBy, limit, getDocs, onSnapshot, doc, getDoc, startAfter } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { db, functions, auth } from "./firebase-config.js";
+import { collection, query, where, orderBy, limit, getDocs, onSnapshot, doc, getDoc, startAfter } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 
 export class GroupManager {
     constructor() {
-        this.db = getFirestore();
-        this.functions = getFunctions();
-        this.auth = getAuth();
+        this.db = db;
+        this.functions = functions;
+        this.auth = auth;
 
         // Cloud Functions
         this.createGroupFn = httpsCallable(this.functions, 'createGroup');

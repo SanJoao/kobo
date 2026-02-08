@@ -25,6 +25,20 @@
       ]
     },
     {
+      "collectionGroup": "highlights",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "is_public",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "date_created",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "books",
       "queryScope": "COLLECTION_GROUP",
       "fields": [

@@ -3,11 +3,11 @@
  * UI components for user recommendations
  */
 
-import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { auth } from "./firebase-config.js";
 
 export class DiscoveryWidgets {
     constructor() {
-        this.auth = getAuth();
+        this.auth = auth;
         this.isLoading = false;
     }
 
@@ -207,7 +207,7 @@ export class DiscoveryWidgets {
 window.discoveryWidgets = new DiscoveryWidgets();
 
 // Global refresh function
-window.refreshDiscoveryWidgets = async function() {
+window.refreshDiscoveryWidgets = async function () {
     if (window.discoveryWidgets) {
         await window.discoveryWidgets.refresh('discovery-widgets-container');
     }

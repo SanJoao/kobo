@@ -1,4 +1,4 @@
-import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, getAdditionalUserInfo} from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, getAdditionalUserInfo } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
 import { collection, getDocs, query, where, collectionGroup, limit, doc, getDoc, runTransaction, arrayUnion, arrayRemove, orderBy, startAfter } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 import { auth, db, analytics } from "./firebase-init.js";
 import { loadProfile } from "./profile.js";
@@ -14,18 +14,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     const colorFilter = document.getElementById('color-filter');
     const sortFilter = document.getElementById('sort-filter');
     const searchInput = document.getElementById('search-input');
+    const showPrivateFilter = document.getElementById('show-private-filter');
+    const privateFilterLabel = document.getElementById('private-filter-label');
     const userProfile = document.getElementById('user-profile');
     const modal = document.getElementById('highlight-focus-modal');
     const modalContent = document.getElementById('modal-highlight-content');
     const closeButton = document.querySelector('.close-button');
     const shareButton = document.getElementById('share-button');
-    
+
     let allHighlights = [];
     let allBooks = [];
     let usersData = {};
     let booksChart, colorsChart, timeSpentChart, timelineChart;
     let activeBookFilter = null;
     let activeColorFilter = null;
+    let includePrivate = false; // Default: hide private books
+    let currentProfileUserId = null; // Track whose profile we're viewing
     let isLoading = false;
     let allLandingHighlights = [];
     let landingHighlightsOffset = 0;
@@ -99,7 +103,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const userNameEl = document.createElement('a');
             userNameEl.href = `/user/${user.uid}`;
             userNameEl.id = 'user-name';
-            
+
             // Fetch user's nickname from Firestore
             const userDocRef = doc(db, "users", user.uid);
             const userDocSnap = await getDoc(userDocRef);
@@ -306,7 +310,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function getUsersData(userIds) {
         const users = {};
         const userIdsToFetch = [...new Set(userIds)].filter(id => !usersData[id]);
-    
+
         if (userIdsToFetch.length > 0) {
             const usersQuery = query(collection(db, 'users'), where('__name__', 'in', userIdsToFetch));
             const usersSnapshot = await getDocs(usersQuery);
@@ -314,7 +318,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 users[doc.id] = doc.data();
             });
         }
-    
+
         // Merge new users into the global usersData object
         Object.assign(usersData, users);
         return usersData;
@@ -344,13 +348,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         isLoading = true;
         const loadingIndicator = document.getElementById('loading-indicator');
         if (loadingIndicator) loadingIndicator.style.display = 'block';
-    
+
         try {
             // Fetch highlights from all users to ensure diversity
             if (allLandingHighlights.length === 0) {
                 const usersSnapshot = await getDocs(collection(db, 'users'));
                 const userIds = usersSnapshot.docs.map(doc => doc.id);
-    
+
                 const highlightsPerUser = 10;
                 const promises = userIds.map(userId => {
                     const userHighlightsQuery = query(
@@ -359,7 +363,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     );
                     return getDocs(userHighlightsQuery);
                 });
-    
+
                 const snapshots = await Promise.all(promises);
                 let highlights = [];
                 snapshots.forEach((snapshot, index) => {
@@ -372,40 +376,40 @@ document.addEventListener('DOMContentLoaded', async () => {
                         });
                     });
                 });
-    
+
                 // Shuffle the combined highlights
                 for (let i = highlights.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
                     [highlights[i], highlights[j]] = [highlights[j], highlights[i]];
                 }
-                
+
                 allLandingHighlights = highlights;
             }
-    
+
             // Paginated display
             const highlightsToDisplay = allLandingHighlights.slice(landingHighlightsOffset, landingHighlightsOffset + 12);
             landingHighlightsOffset += 12;
-    
+
             const userIds = highlightsToDisplay.map(h => h.user_id);
             await getUsersData(userIds);
-    
+
             const enrichedHighlights = await Promise.all(highlightsToDisplay.map(async h => {
                 const book = await getBookForHighlight(h);
                 const user = usersData[h.user_id];
                 const nickname = user && user.profile ? user.profile.nickname : 'Anonymous';
                 return { ...h, book_title: book ? book.title : 'Unknown Book', user_nickname: nickname };
             }));
-    
+
             const trendingHighlightsContainer = document.getElementById('trending-highlights-container');
             if (!trendingHighlightsContainer.classList.contains('masonry')) {
                 trendingHighlightsContainer.classList.add('masonry');
             }
-            
+
             enrichedHighlights.forEach(h => {
                 const highlightEl = createHighlightElement(h);
                 trendingHighlightsContainer.appendChild(highlightEl);
             });
-    
+
         } catch (error) {
             console.error("Error loading landing page highlights:", error);
         } finally {
@@ -424,6 +428,35 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function loadUserData(userId) {
         try {
+            // Determine if current user is the profile owner
+            const isOwner = auth.currentUser?.uid === userId;
+            currentProfileUserId = userId;
+            console.log('[Script] loadUserData called for userId:', userId, 'isOwner:', isOwner, 'includePrivate:', includePrivate);
+
+            // Show/hide private filter based on ownership
+            if (privateFilterLabel) {
+                if (isOwner) {
+                    privateFilterLabel.style.display = 'flex';
+                } else {
+                    privateFilterLabel.style.display = 'none';
+                }
+            }
+
+            // Get or create visibility manager
+            let visibilityManager = window.bookVisibilityManager;
+            if (!visibilityManager) {
+                console.log('[Script] Creating local BookVisibilityManager instance...');
+                // Import and create if not available globally
+                const { BookVisibilityManager } = await import('./book-visibility-manager.js');
+                visibilityManager = new BookVisibilityManager();
+                window.bookVisibilityManager = visibilityManager;
+            }
+
+            // Load visibility settings
+            console.log('[Script] Loading visibility settings...');
+            const visibility = await visibilityManager.getBookVisibility(userId);
+            console.log('[Script] Visibility settings loaded:', visibility);
+
             const userBooksQuery = query(collection(db, "users", userId, "books"));
             const userHighlightsQuery = query(collection(db, "users", userId, "highlights"));
             const userWordsQuery = query(collection(db, "users", userId, "words"));
@@ -434,9 +467,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 getDocs(userWordsQuery)
             ]);
 
-            const books = booksSnapshot.docs.map(doc => ({ doc_id: doc.id, ...doc.data() }));
-            const highlights = highlightsSnapshot.docs.map(doc => ({ highlight_id: doc.id, user_id: userId, ...doc.data() }));
+            let books = booksSnapshot.docs.map(doc => ({ doc_id: doc.id, ...doc.data() }));
+            let highlights = highlightsSnapshot.docs.map(doc => ({ highlight_id: doc.id, user_id: userId, ...doc.data() }));
             const words = wordsSnapshot.docs.map(doc => ({ word_id: doc.id, ...doc.data() }));
+
+            console.log('[Script] Before filtering: books:', books.length, 'highlights:', highlights.length);
+
+            // Filter books based on visibility (use includePrivate state for owners)
+            books = visibilityManager.filterBooks(books, isOwner, includePrivate);
+            highlights = visibilityManager.filterHighlights(highlights, isOwner, includePrivate);
+            console.log('[Script] After filtering: books:', books.length, 'highlights:', highlights.length);
 
             const booksMap = new Map(books.map(book => [book.doc_id, book]));
 
@@ -607,7 +647,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { 
+                    legend: {
                         display: true,
                         labels: { color: textColor }
                     },
@@ -618,19 +658,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 },
                 scales: {
-                    x: { 
+                    x: {
                         position: 'top',
                         stacked: true,
-                        ticks: { color: textColor }, 
-                        grid: { color: gridColor } 
+                        ticks: { color: textColor },
+                        grid: { color: gridColor }
                     },
-                    y: { 
+                    y: {
                         stacked: true,
-                        ticks: { 
+                        ticks: {
                             color: textColor,
-                            autoSkip: false 
-                        }, 
-                        grid: { color: gridColor } 
+                            autoSkip: false
+                        },
+                        grid: { color: gridColor }
                     }
                 }
             }
@@ -777,7 +817,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     } else { // month
                         key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
                     }
-                    
+
                     const index = chart.data.labels.indexOf(key);
                     if (index !== -1) {
                         const x = xAxis.getPixelForValue(index);
@@ -816,12 +856,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 },
                 plugins: {
-                    legend: { 
+                    legend: {
                         display: true,
                         labels: { color: textColor }
                     },
-                    title: { 
-                        display: true, 
+                    title: {
+                        display: true,
                         text: 'Highlights Timeline',
                         color: textColor
                     },
@@ -855,12 +895,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                                 let innerHtml = '<thead>';
 
-                                titleLines.forEach(function(title) {
+                                titleLines.forEach(function (title) {
                                     innerHtml += '<tr><th>' + title + '</th></tr>';
                                 });
                                 innerHtml += '</thead><tbody>';
 
-                                bodyLines.forEach(function(body, i) {
+                                bodyLines.forEach(function (body, i) {
                                     const colors = tooltipModel.labelColors[i];
                                     let style = 'background:' + colors.backgroundColor;
                                     style += '; border-color:' + colors.borderColor;
@@ -868,14 +908,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     const span = '<span style="' + style + '"></span>';
                                     innerHtml += '<tr><td>' + span + body + '</td></tr>';
                                 });
-                                
+
                                 // Finished Books Section
                                 const chart = context.chart;
                                 const completedBooks = allBooks.filter(b => b.percent_read >= 98);
                                 const currentFilter = document.querySelector('#timeline-filters button.active')?.dataset.filter || 'month';
                                 const dataIndex = tooltipModel.dataPoints[0].dataIndex;
                                 const label = chart.data.labels[dataIndex];
-                                
+
                                 const booksAtPosition = [];
                                 if (label) {
                                     completedBooks.forEach(book => {
@@ -1010,7 +1050,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             datasets: datasets
         };
     }
-    
+
     function updateCharts(highlights) {
         // Update Time Spent Chart - This should be independent of highlight filters
         if (timeSpentChart) {
@@ -1081,7 +1121,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-function createHighlightElement(h, searchTerm = '') {
+    function createHighlightElement(h, searchTerm = '') {
         const highlightEl = document.createElement('div');
         highlightEl.classList.add('highlight', `color-${h.color}`);
         highlightEl.dataset.highlightId = h.highlight_id;
@@ -1089,7 +1129,7 @@ function createHighlightElement(h, searchTerm = '') {
         const titleEl = document.createElement('div');
         titleEl.classList.add('book-title');
         titleEl.innerHTML = `<span>${h.book_title}</span>`;
-        
+
         const shareIcon = document.createElement('i');
         shareIcon.classList.add('fas', 'fa-share-alt', 'share-icon');
         shareIcon.addEventListener('click', (e) => {
@@ -1159,11 +1199,11 @@ function createHighlightElement(h, searchTerm = '') {
         if (h.user_nickname) {
             const sharedByEl = document.createElement('div');
             sharedByEl.classList.add('shared-by');
-            
+
             const userLink = document.createElement('a');
             userLink.href = `/user/${h.user_id}`;
             userLink.textContent = h.user_nickname;
-            
+
             sharedByEl.append('Shared by: ', userLink);
             rightFooter.appendChild(sharedByEl);
         }
@@ -1181,7 +1221,7 @@ function createHighlightElement(h, searchTerm = '') {
         return highlightEl;
     }
 
-async function toggleLike(highlightId, authorId) {
+    async function toggleLike(highlightId, authorId) {
         const user = auth.currentUser;
         if (!user) {
             alert("You must be logged in to like a highlight.");
@@ -1322,7 +1362,7 @@ async function toggleLike(highlightId, authorId) {
 
     function openFocusModal(highlight) {
         modalContent.innerHTML = ''; // Clear previous content
-        
+
         // Recreate the highlight structure inside the modal
         const highlightEl = document.createElement('div');
         highlightEl.classList.add('highlight', `color-${highlight.color}`);
@@ -1456,7 +1496,7 @@ async function toggleLike(highlightId, authorId) {
         document.body.insertAdjacentHTML('beforeend', modalHTML);
     }
 
-    window.shareQuoteImage = async function(highlight) {
+    window.shareQuoteImage = async function (highlight) {
         if (!window.quoteGenerator) {
             alert('Quote generator not loaded. Please refresh the page.');
             return;
@@ -1479,7 +1519,7 @@ async function toggleLike(highlightId, authorId) {
         }
     };
 
-    window.shareQuoteText = async function(highlight) {
+    window.shareQuoteText = async function (highlight) {
         try {
             // Check if public link generator is available
             if (!window.publicLinkGenerator) {
@@ -1555,7 +1595,7 @@ async function toggleLike(highlightId, authorId) {
         }
     };
 
-    window.previewQuoteStyle = async function(highlight, style) {
+    window.previewQuoteStyle = async function (highlight, style) {
         if (!window.quoteGenerator) {
             alert('Quote generator not loaded. Please refresh the page.');
             return;
@@ -1584,7 +1624,7 @@ async function toggleLike(highlightId, authorId) {
         }
     };
 
-    window.downloadQuoteImage = function(dataUrl, style) {
+    window.downloadQuoteImage = function (dataUrl, style) {
         const a = document.createElement('a');
         a.href = dataUrl;
         a.download = `koby-quote-${style}-${Date.now()}.png`;
@@ -1635,6 +1675,17 @@ async function toggleLike(highlightId, authorId) {
             closeFocusModal();
         }
     });
+
+    // Private filter toggle - reload data when checked/unchecked
+    if (showPrivateFilter) {
+        showPrivateFilter.addEventListener('change', async (e) => {
+            includePrivate = e.target.checked;
+            console.log('[Script] Show Private toggled:', includePrivate);
+            if (currentProfileUserId) {
+                await loadUserData(currentProfileUserId);
+            }
+        });
+    }
 
     // Make functions globally available
     window.createHighlightElement = createHighlightElement;

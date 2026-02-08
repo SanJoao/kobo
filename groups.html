@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reading Groups - Koby</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
+
 <body>
     <header id="header" class="header"></header>
 
@@ -79,8 +80,7 @@
                     <label for="group-name">
                         Group Name <span class="required">*</span>
                     </label>
-                    <input type="text" id="group-name" required maxlength="100"
-                           placeholder="e.g., Sci-Fi Book Club">
+                    <input type="text" id="group-name" required maxlength="100" placeholder="e.g., Sci-Fi Book Club">
                     <div class="char-counter">
                         <span id="name-count">0</span>/100
                     </div>
@@ -89,7 +89,7 @@
                 <div class="form-group">
                     <label for="group-description">Description</label>
                     <textarea id="group-description" rows="4" maxlength="1000"
-                              placeholder="What's this group about?"></textarea>
+                        placeholder="What's this group about?"></textarea>
                     <div class="char-counter">
                         <span id="description-count">0</span>/1000
                     </div>
@@ -165,7 +165,7 @@
             });
 
         // Switch tabs
-        window.switchTab = async function(tab) {
+        window.switchTab = async function (tab) {
             currentTab = tab;
 
             // Update tab buttons
@@ -215,7 +215,7 @@
         }
 
         // Load more groups
-        window.loadMoreGroups = async function() {
+        window.loadMoreGroups = async function () {
             const btn = document.querySelector('.btn-load-more');
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
@@ -253,7 +253,7 @@
         }
 
         // Search groups
-        window.searchGroups = async function() {
+        window.searchGroups = async function () {
             const searchInput = document.getElementById('search-input');
             const searchTerm = searchInput.value.trim();
 
@@ -299,8 +299,8 @@
                         <p>No groups found</p>
                         <p class="groups-empty-hint">
                             ${currentTab === 'my-groups'
-                                ? 'Join or create a group to get started!'
-                                : 'Try a different search or create a new group'}
+                        ? 'Join or create a group to get started!'
+                        : 'Try a different search or create a new group'}
                         </p>
                     </div>
                 `;
@@ -368,7 +368,7 @@
         }
 
         // View group details
-        window.viewGroup = async function(groupId) {
+        window.viewGroup = async function (groupId) {
             const modal = document.getElementById('group-detail-modal');
             const content = document.getElementById('group-detail-content');
 
@@ -544,7 +544,7 @@
         }
 
         // Join group
-        window.joinGroup = async function(groupId) {
+        window.joinGroup = async function (groupId) {
             const result = await window.groupManager.joinGroup(groupId);
 
             if (result.success) {
@@ -556,7 +556,7 @@
         };
 
         // Leave group
-        window.confirmLeaveGroup = async function(groupId) {
+        window.confirmLeaveGroup = async function (groupId) {
             if (!confirm('Are you sure you want to leave this group?')) return;
 
             const result = await window.groupManager.leaveGroup(groupId);
@@ -575,7 +575,7 @@
         };
 
         // Delete group
-        window.confirmDeleteGroup = async function(groupId) {
+        window.confirmDeleteGroup = async function (groupId) {
             if (!confirm('Are you sure you want to delete this group? This action cannot be undone.')) return;
 
             const result = await window.groupManager.deleteGroup(groupId);
@@ -594,7 +594,7 @@
         };
 
         // Show create group modal
-        window.showCreateGroupModal = function() {
+        window.showCreateGroupModal = function () {
             if (!currentUser) {
                 window.location.href = '/login.html';
                 return;
@@ -623,17 +623,17 @@
         };
 
         // Close create group modal
-        window.closeCreateGroupModal = function() {
+        window.closeCreateGroupModal = function () {
             document.getElementById('create-group-modal').style.display = 'none';
         };
 
         // Close group detail modal
-        window.closeGroupDetailModal = function() {
+        window.closeGroupDetailModal = function () {
             document.getElementById('group-detail-modal').style.display = 'none';
         };
 
         // Handle create group
-        window.handleCreateGroup = async function(event) {
+        window.handleCreateGroup = async function (event) {
             event.preventDefault();
 
             const name = document.getElementById('group-name').value.trim();
@@ -665,7 +665,7 @@
         };
 
         // Show new post form (placeholder for now)
-        window.showNewPostForm = function(groupId) {
+        window.showNewPostForm = function (groupId) {
             const title = prompt('Post title:');
             if (!title) return;
 
@@ -718,4 +718,5 @@
         }
     </script>
 </body>
+
 </html>

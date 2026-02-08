@@ -3,11 +3,12 @@
  * Creates shareable public links for highlights with short IDs
  */
 
-import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { db } from "./firebase-config.js";
+import { doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 export class PublicLinkGenerator {
     constructor() {
-        this.db = getFirestore();
+        this.db = db;
         this.baseUrl = window.location.origin;
     }
 

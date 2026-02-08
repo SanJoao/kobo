@@ -3,11 +3,11 @@
  * Handles comment rendering and user interactions
  */
 
-import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { auth } from "./firebase-config.js";
 
 export class CommentUI {
     constructor() {
-        this.auth = getAuth();
+        this.auth = auth;
         this.currentHighlightId = null;
         this.currentHighlightOwnerId = null;
     }
@@ -162,7 +162,7 @@ export class CommentUI {
 window.commentUI = new CommentUI();
 
 // Global helper functions for onclick handlers
-window.submitComment = async function(highlightId, highlightOwnerId, parentId = null) {
+window.submitComment = async function (highlightId, highlightOwnerId, parentId = null) {
     const currentUser = window.auth?.currentUser || window.currentUser;
     if (!currentUser) {
         window.location.href = '/login.html';
@@ -215,7 +215,7 @@ window.submitComment = async function(highlightId, highlightOwnerId, parentId = 
     }
 };
 
-window.editComment = async function(commentId, highlightId, highlightOwnerId) {
+window.editComment = async function (commentId, highlightId, highlightOwnerId) {
     const commentEl = document.querySelector(`[data-comment-id="${commentId}"]`);
     if (!commentEl) return;
 
@@ -242,7 +242,7 @@ window.editComment = async function(commentId, highlightId, highlightOwnerId) {
     }
 };
 
-window.deleteComment = async function(commentId, highlightId, highlightOwnerId, parentId = null) {
+window.deleteComment = async function (commentId, highlightId, highlightOwnerId, parentId = null) {
     if (!confirm('Are you sure you want to delete this comment?')) return;
 
     try {
@@ -262,7 +262,7 @@ window.deleteComment = async function(commentId, highlightId, highlightOwnerId, 
     }
 };
 
-window.showReplyForm = function(commentId, highlightId, highlightOwnerId) {
+window.showReplyForm = function (commentId, highlightId, highlightOwnerId) {
     const container = document.getElementById(`reply-form-${commentId}`);
     if (!container) return;
 
@@ -285,7 +285,7 @@ window.showReplyForm = function(commentId, highlightId, highlightOwnerId) {
     }
 };
 
-window.hideReplyForm = function(commentId) {
+window.hideReplyForm = function (commentId) {
     const container = document.getElementById(`reply-form-${commentId}`);
     if (container) {
         container.style.display = 'none';

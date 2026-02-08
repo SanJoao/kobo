@@ -3,13 +3,13 @@
  * Generates annual reading recaps (like Spotify Wrapped)
  */
 
-import { getFirestore, collection, query, where, orderBy, getDocs, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { db, auth } from "./firebase-config.js";
+import { collection, query, where, orderBy, getDocs, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 export class RecapGenerator {
     constructor() {
-        this.db = getFirestore();
-        this.auth = getAuth();
+        this.db = db;
+        this.auth = auth;
     }
 
     /**
@@ -130,7 +130,7 @@ export class RecapGenerator {
         // Find peak month
         const peakMonthIndex = monthCounts.indexOf(Math.max(...monthCounts));
         const months = ['January', 'February', 'March', 'April', 'May', 'June',
-                       'July', 'August', 'September', 'October', 'November', 'December'];
+            'July', 'August', 'September', 'October', 'November', 'December'];
 
         // Find peak day
         const peakDayIndex = dayCounts.indexOf(Math.max(...dayCounts));

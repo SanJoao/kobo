@@ -1,6 +1,6 @@
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
 import { ref, uploadBytesResumable } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-storage.js";
-import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+import { doc, onSnapshot, collection, getDocs, query } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 import { auth, storage, db, analytics } from "./firebase-init.js";
 import { logEvent } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-analytics.js";
 
@@ -16,13 +16,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const progressBar = document.getElementById('progress-bar');
     const progressText = document.getElementById('progress-text');
 
+    // Book management elements
+    const bookManagementSection = document.getElementById('book-management-section');
+    const bookListContainer = document.getElementById('book-list');
+    const saveVisibilityBtn = document.getElementById('save-visibility-btn');
+
     let currentUser = null;
     let selectedMode = 'offline';
+    let userBooks = [];
+    let visibilityChanges = {}; // Track changes before saving
+    let hasChanges = false;
 
     // Auth state listener
     onAuthStateChanged(auth, (user) => {
         currentUser = user;
         updateUploadButtonState();
+
+        // Load book list when user is authenticated
+        if (user && bookManagementSection) {
+            loadUserBooks(user.uid);
+        } else if (bookManagementSection) {
+            bookListContainer.innerHTML = '<div class="no-books-message">Please sign in to manage your books.</div>';
+        }
     });
 
     // Update upload button based on mode and auth state
@@ -51,6 +66,12 @@ document.addEventListener('DOMContentLoaded', () => {
         modeSelection.style.display = 'none';
         fileUploadSection.style.display = 'block';
         updateUploadButtonState();
+
+        // Load books when section becomes visible (auth may have already fired)
+        if (currentUser && bookListContainer) {
+            console.log('[Upload] Loading books for user:', currentUser.uid);
+            loadUserBooks(currentUser.uid);
+        }
     });
 
     // Back button - return to mode selection
@@ -222,34 +243,57 @@ document.addEventListener('DOMContentLoaded', () => {
     function listenForProcessingStatus(userId) {
         const statusRef = doc(db, "processingStatus", userId);
 
-        onSnapshot(statusRef, (doc) => {
-            if (doc.exists()) {
-                const statusData = doc.data();
+        onSnapshot(statusRef, async (docSnap) => {
+            if (docSnap.exists()) {
+                const statusData = docSnap.data();
                 uploadStatus.innerHTML = '';
 
                 const message = document.createElement('p');
                 if (statusData.status === 'success') {
                     message.textContent = `Successfully processed ${statusData.bookCount} books, ${statusData.highlightCount} highlights and ${statusData.wordCount} words.`;
                     message.style.color = 'green';
+                    message.style.fontWeight = 'bold';
+                    uploadStatus.appendChild(message);
 
-                    const profileButton = document.createElement('button');
-                    profileButton.textContent = 'Go to Your Profile';
-                    profileButton.id = 'go-to-profile';
-                    profileButton.className = 'btn-primary';
-                    profileButton.style.marginTop = '20px';
-                    profileButton.onclick = () => {
-                        window.location.href = `/user/${userId}`;
-                    };
-                    uploadStatus.appendChild(profileButton);
+                    // Add review prompt
+                    const reviewNote = document.createElement('p');
+                    reviewNote.innerHTML = '👇 <strong>Review your books below</strong> and set visibility before going to your profile.';
+                    reviewNote.style.color = '#666';
+                    reviewNote.style.marginTop = '10px';
+                    uploadStatus.appendChild(reviewNote);
+
+                    // Reload book list to show newly processed books
+                    await loadUserBooks(userId);
+
+                    // Add "Go to Profile" button AFTER the book management section
+                    const existingProfileBtn = document.getElementById('go-to-profile');
+                    if (!existingProfileBtn) {
+                        const profileButton = document.createElement('button');
+                        profileButton.textContent = 'Done - Go to Your Profile';
+                        profileButton.id = 'go-to-profile';
+                        profileButton.className = 'btn-primary';
+                        profileButton.style.marginTop = '20px';
+                        profileButton.style.display = 'block';
+                        profileButton.style.width = '100%';
+                        profileButton.style.maxWidth = '300px';
+                        profileButton.style.marginLeft = 'auto';
+                        profileButton.style.marginRight = 'auto';
+                        profileButton.onclick = () => {
+                            window.location.href = `/user/${userId}`;
+                        };
+                        // Add button after save visibility button
+                        bookManagementSection.appendChild(profileButton);
+                    }
 
                 } else if (statusData.status === 'no_highlights') {
                     message.textContent = 'Processing complete. No new highlights were found.';
                     message.style.color = 'orange';
+                    uploadStatus.appendChild(message);
                 } else if (statusData.status === 'error') {
                     message.textContent = `An error occurred: ${statusData.error}`;
                     message.style.color = 'red';
+                    uploadStatus.appendChild(message);
                 }
-                uploadStatus.appendChild(message);
             }
         });
     }
@@ -263,4 +307,198 @@ document.addEventListener('DOMContentLoaded', () => {
         progressBar.style.width = '0%';
         fileInput.value = '';
     }
+
+    // ==================== Book Visibility Management ====================
+
+    /**
+     * Load user's books from Firestore
+     */
+    async function loadUserBooks(userId) {
+        try {
+            console.log('[Upload] loadUserBooks called for userId:', userId);
+            bookListContainer.innerHTML = '<div class="loading-books"><i class="fas fa-spinner fa-spin"></i> Loading your books...</div>';
+
+            // Get books from Firestore
+            console.log('[Upload] Fetching books from Firestore...');
+            const booksQuery = query(collection(db, "users", userId, "books"));
+            const booksSnapshot = await getDocs(booksQuery);
+            console.log('[Upload] Found', booksSnapshot.docs.length, 'books');
+
+            // Get highlight counts per book
+            console.log('[Upload] Fetching highlights...');
+            const highlightsQuery = query(collection(db, "users", userId, "highlights"));
+            const highlightsSnapshot = await getDocs(highlightsQuery);
+            console.log('[Upload] Found', highlightsSnapshot.docs.length, 'highlights');
+
+            const highlightCounts = {};
+            highlightsSnapshot.forEach(doc => {
+                const data = doc.data();
+                const bookId = data.book_id;
+                highlightCounts[bookId] = (highlightCounts[bookId] || 0) + 1;
+            });
+
+            // Build book list
+            userBooks = [];
+            booksSnapshot.forEach(docSnap => {
+                const data = docSnap.data();
+                userBooks.push({
+                    id: docSnap.id,
+                    title: data.title || 'Untitled',
+                    timeSpent: data.time_spent_reading || 0,
+                    percentRead: data.percent_read || 0,
+                    highlightCount: highlightCounts[docSnap.id] || 0,
+                    dateLastRead: data.date_last_read
+                });
+            });
+
+            // Sort by date last read (most recent first)
+            userBooks.sort((a, b) => {
+                if (!a.dateLastRead) return 1;
+                if (!b.dateLastRead) return -1;
+                return new Date(b.dateLastRead) - new Date(a.dateLastRead);
+            });
+
+            // Load current visibility settings
+            if (window.bookVisibilityManager) {
+                await window.bookVisibilityManager.getBookVisibility(userId);
+            }
+
+            renderBookList();
+
+        } catch (error) {
+            console.error('[Upload] Error loading books:', error);
+            bookListContainer.innerHTML = '<div class="no-books-message">Error loading books. Please try again.</div>';
+        }
+    }
+
+    /**
+     * Render the book list with visibility toggles
+     */
+    function renderBookList() {
+        if (userBooks.length === 0) {
+            bookListContainer.innerHTML = '<div class="no-books-message">No books found. Upload a file to get started!</div>';
+            return;
+        }
+
+        bookListContainer.innerHTML = '';
+
+        userBooks.forEach(book => {
+            const currentStatus = window.bookVisibilityManager?.getStatus(book.id) || 'normal';
+            const isPrivate = currentStatus === 'private';
+            const isExcluded = currentStatus === 'excluded';
+
+            const bookItem = document.createElement('div');
+            bookItem.className = 'book-item';
+            bookItem.dataset.bookId = book.id;
+
+            // Format time spent
+            const hours = Math.floor(book.timeSpent / 3600);
+            const minutes = Math.floor((book.timeSpent % 3600) / 60);
+            const timeStr = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+            bookItem.innerHTML = `
+                <div class="book-info">
+                    <div class="book-title" title="${book.title}">${book.title}</div>
+                    <div class="book-stats">
+                        ${book.highlightCount} highlights • ${timeStr} reading time • ${Math.round(book.percentRead)}% read
+                    </div>
+                </div>
+                <div class="visibility-toggles">
+                    <label class="toggle-group">
+                        <input type="checkbox" class="private-toggle" data-book-id="${book.id}" ${isPrivate ? 'checked' : ''}>
+                        <span>Private</span>
+                    </label>
+                    <label class="toggle-group">
+                        <input type="checkbox" class="exclude-toggle" data-book-id="${book.id}" ${isExcluded ? 'checked' : ''}>
+                        <span>Exclude</span>
+                    </label>
+                </div>
+            `;
+
+            bookListContainer.appendChild(bookItem);
+        });
+
+        // Add event listeners for toggles
+        bookListContainer.querySelectorAll('.private-toggle').forEach(toggle => {
+            toggle.addEventListener('change', (e) => handleVisibilityToggle(e, 'private'));
+        });
+
+        bookListContainer.querySelectorAll('.exclude-toggle').forEach(toggle => {
+            toggle.addEventListener('change', (e) => handleVisibilityToggle(e, 'excluded'));
+        });
+    }
+
+    /**
+     * Handle visibility toggle change
+     */
+    function handleVisibilityToggle(event, type) {
+        const bookId = event.target.dataset.bookId;
+        const isChecked = event.target.checked;
+        const bookItem = event.target.closest('.book-item');
+
+        // If checking this toggle, uncheck the other
+        if (isChecked) {
+            const otherToggle = bookItem.querySelector(
+                type === 'private' ? '.exclude-toggle' : '.private-toggle'
+            );
+            if (otherToggle) {
+                otherToggle.checked = false;
+            }
+            visibilityChanges[bookId] = type;
+        } else {
+            visibilityChanges[bookId] = 'normal';
+        }
+
+        // Enable save button
+        hasChanges = true;
+        saveVisibilityBtn.disabled = false;
+        saveVisibilityBtn.textContent = 'Save Changes';
+    }
+
+    /**
+     * Save visibility changes to Firestore
+     */
+    async function saveVisibilityChanges() {
+        if (!currentUser || !hasChanges) return;
+
+        try {
+            saveVisibilityBtn.disabled = true;
+            saveVisibilityBtn.textContent = 'Saving...';
+
+            // Get current visibility and merge with changes
+            const currentVisibility = await window.bookVisibilityManager.getBookVisibility(currentUser.uid);
+            const mergedVisibility = { ...currentVisibility, ...visibilityChanges };
+
+            // Save to Firestore
+            await window.bookVisibilityManager.bulkSetVisibility(currentUser.uid, mergedVisibility);
+
+            // Reset state
+            visibilityChanges = {};
+            hasChanges = false;
+            saveVisibilityBtn.textContent = '✓ Saved!';
+
+            // Track analytics
+            if (analytics) {
+                logEvent(analytics, 'update_book_visibility', {
+                    changes_count: Object.keys(visibilityChanges).length
+                });
+            }
+
+            setTimeout(() => {
+                saveVisibilityBtn.textContent = 'Save Changes';
+                saveVisibilityBtn.disabled = true;
+            }, 2000);
+
+        } catch (error) {
+            console.error('[Upload] Error saving visibility:', error);
+            saveVisibilityBtn.textContent = 'Error - Try Again';
+            saveVisibilityBtn.disabled = false;
+        }
+    }
+
+    // Save button click handler
+    if (saveVisibilityBtn) {
+        saveVisibilityBtn.addEventListener('click', saveVisibilityChanges);
+    }
 });
+

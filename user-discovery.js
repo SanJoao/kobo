@@ -3,11 +3,12 @@
  * Recommendation algorithms for finding users to follow
  */
 
-import { getFirestore, collection, getDocs, query, where, limit, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { db } from "./firebase-config.js";
+import { collection, getDocs, query, where, limit, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 export class UserDiscovery {
     constructor() {
-        this.db = getFirestore();
+        this.db = db;
         this.recommendationCache = new Map();
         this.CACHE_TTL = 5 * 60 * 1000; // 5 minutes
     }
@@ -350,7 +351,7 @@ export class UserDiscovery {
 window.userDiscovery = new UserDiscovery();
 
 // Global follow handler for discovery widgets
-window.handleDiscoveryFollow = async function(userId, button) {
+window.handleDiscoveryFollow = async function (userId, button) {
     const currentUser = window.currentUser || window.auth?.currentUser;
     if (!currentUser) {
         window.location.href = '/login.html';
