@@ -31,6 +31,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let visibilityChanges = {}; // Track changes before saving
     let hasChanges = false;
 
+    // Two-phase upload state
+    let pendingFile = null;  // File waiting for visibility confirmation
+    let extractedBooks = []; // Books extracted from pending file
+    let isPreviewMode = false; // Whether we're showing pre-upload confirmation
+
+
     // Auth state listener
     onAuthStateChanged(auth, (user) => {
         currentUser = user;
@@ -98,6 +104,76 @@ document.addEventListener('DOMContentLoaded', () => {
         fileInput.click();
     });
 
+    // Drag and drop handlers
+    const dropZone = document.getElementById('drop-zone');
+    if (dropZone) {
+        // Prevent default drag behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        // Highlight drop zone when file is dragged over
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.add('drag-over');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.remove('drag-over');
+            }, false);
+        });
+
+        // Handle dropped files
+        dropZone.addEventListener('drop', async (e) => {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                await processDroppedFile(file);
+            }
+        });
+
+        // Click on drop zone triggers file input
+        dropZone.addEventListener('click', (e) => {
+            if (e.target.id !== 'upload-button') {
+                // Avoid double-trigger if clicking the button itself
+                fileInput.click();
+            }
+        });
+    }
+
+    /**
+     * Process a file dropped or selected
+     */
+    async function processDroppedFile(file) {
+        if (file.name !== 'KoboReader.sqlite') {
+            uploadStatus.textContent = 'Error: Please select the KoboReader.sqlite file.';
+            uploadStatus.style.color = 'red';
+            return;
+        }
+
+        const mode = document.querySelector('input[name="upload-mode"]:checked').value;
+
+        if (mode !== 'offline' && !currentUser) {
+            uploadStatus.textContent = 'Please sign in to use cloud features.';
+            uploadStatus.style.color = 'red';
+            return;
+        }
+
+        if (mode === 'offline') {
+            await processOffline(file);
+        } else {
+            await parseAndShowConfirmation(file, mode);
+        }
+    }
+
     // File input change - process file based on mode
     fileInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];
@@ -114,9 +190,193 @@ document.addEventListener('DOMContentLoaded', () => {
         if (mode === 'offline') {
             await processOffline(file);
         } else {
-            await uploadToCloud(file);
+            // TWO-PHASE UPLOAD: Parse file locally first to get book list
+            // User must confirm visibility settings before upload
+            await parseAndShowConfirmation(file, mode);
         }
     });
+
+    /**
+     * Parse file locally and show visibility confirmation before cloud upload
+     * This is the first phase of the two-phase upload flow
+     */
+    async function parseAndShowConfirmation(file, mode) {
+        try {
+            uploadStatus.textContent = '';
+            processingProgress.style.display = 'block';
+            uploadButton.disabled = true;
+            progressText.textContent = 'Analyzing your library...';
+            progressBar.style.width = '10%';
+
+            const processor = window.offlineProcessor;
+            await processor.init();
+
+            // Read file and parse locally
+            const arrayBuffer = await file.arrayBuffer();
+            const uint8Array = new Uint8Array(arrayBuffer);
+            processor.db = new processor.SQL.Database(uint8Array);
+
+            progressBar.style.width = '30%';
+            progressText.textContent = 'Extracting books...';
+
+            // Extract just books for preview (not full processing)
+            await processor.extractBooks(() => { });
+
+            // Get highlight counts per book
+            progressBar.style.width = '50%';
+            progressText.textContent = 'Counting highlights...';
+
+            const highlightQuery = `
+                SELECT VolumeID AS book_id, COUNT(*) as count
+                FROM Bookmark
+                WHERE Type = 'highlight' OR Type = 'note'
+                GROUP BY VolumeID
+            `;
+            const highlightResult = processor.db.exec(highlightQuery);
+            const highlightCounts = {};
+            if (highlightResult.length > 0) {
+                highlightResult[0].values.forEach(row => {
+                    const bookId = row[0]?.replace(/\//g, '__');
+                    highlightCounts[bookId] = row[1];
+                });
+            }
+
+            // Close the database
+            processor.db.close();
+            processor.db = null;
+
+            progressBar.style.width = '70%';
+            progressText.textContent = 'Preparing confirmation...';
+
+            // Store extracted books for rendering
+            extractedBooks = processor.data.books.map(book => ({
+                id: book.doc_id,
+                title: book.title || 'Untitled',
+                timeSpent: book.time_spent_reading || 0,
+                percentRead: book.percent_read || 0,
+                highlightCount: highlightCounts[book.doc_id] || 0,
+                dateLastRead: book.date_last_read
+            }));
+
+            // Sort by date last read (most recent first)
+            extractedBooks.sort((a, b) => {
+                if (!a.dateLastRead) return 1;
+                if (!b.dateLastRead) return -1;
+                return new Date(b.dateLastRead) - new Date(a.dateLastRead);
+            });
+
+            // Store the file for later upload after confirmation
+            pendingFile = file;
+            isPreviewMode = true;
+
+            progressBar.style.width = '100%';
+            processingProgress.style.display = 'none';
+
+            // Show confirmation UI
+            showPreUploadConfirmation(mode);
+
+        } catch (error) {
+            console.error('[Upload] Error parsing file for preview:', error);
+            processingProgress.style.display = 'none';
+            uploadStatus.textContent = `Error analyzing file: ${error.message}. Please try again.`;
+            uploadStatus.style.color = 'red';
+            uploadButton.disabled = false;
+        }
+    }
+
+    /**
+     * Show pre-upload confirmation with book visibility settings
+     */
+    function showPreUploadConfirmation(mode) {
+        // Update UI to show confirmation state
+        uploadStatus.innerHTML = '';
+
+        const confirmationMessage = document.createElement('div');
+        confirmationMessage.className = 'confirmation-message';
+        confirmationMessage.innerHTML = `
+            <div style="background: #e8f5e9; border-radius: 8px; padding: 16px; margin-bottom: 20px; text-align: center;">
+                <h3 style="margin: 0 0 8px 0; color: #2e7d32;">📚 Found ${extractedBooks.length} books with highlights</h3>
+                <p style="margin: 0; color: #666;">Review and set visibility for each book below before uploading.</p>
+            </div>
+        `;
+        uploadStatus.appendChild(confirmationMessage);
+
+        // Use the extracted books as userBooks for rendering
+        userBooks = extractedBooks;
+
+        // For private mode, auto-select all books as private
+        const autoPrivate = mode === 'private';
+
+        // Render the book list with visibility toggles
+        renderBookList(autoPrivate);
+
+        // Show the book management section
+        if (bookManagementSection) {
+            bookManagementSection.style.display = 'block';
+        }
+
+        // Update save button to be the "Confirm & Upload" button
+        if (saveVisibilityBtn) {
+            saveVisibilityBtn.textContent = '🚀 Confirm & Upload';
+            saveVisibilityBtn.disabled = false;
+            saveVisibilityBtn.onclick = confirmAndUpload;
+        }
+
+        uploadButton.style.display = 'none';
+    }
+
+    /**
+     * Confirm visibility settings and proceed with cloud upload
+     */
+    async function confirmAndUpload() {
+        if (!pendingFile || !currentUser) {
+            uploadStatus.textContent = 'Error: No file pending or not logged in.';
+            uploadStatus.style.color = 'red';
+            return;
+        }
+
+        try {
+            saveVisibilityBtn.disabled = true;
+            saveVisibilityBtn.textContent = 'Uploading...';
+
+            // First, save visibility settings to Firestore BEFORE upload
+            // This way the cloud function can read them when processing
+            const visibilityToSave = {};
+            extractedBooks.forEach(book => {
+                // Check if there's a pending change, otherwise default based on mode
+                if (visibilityChanges[book.id]) {
+                    visibilityToSave[book.id] = visibilityChanges[book.id];
+                } else if (selectedMode === 'private') {
+                    visibilityToSave[book.id] = 'private';
+                } else {
+                    visibilityToSave[book.id] = 'normal';
+                }
+            });
+
+            // Save visibility settings to Firestore
+            if (window.bookVisibilityManager) {
+                await window.bookVisibilityManager.bulkSetVisibility(currentUser.uid, visibilityToSave);
+                console.log('[Upload] Visibility settings saved before upload:', visibilityToSave);
+            }
+
+            // Now proceed with the actual upload
+            isPreviewMode = false;
+            await uploadToCloud(pendingFile);
+
+            // Reset state
+            pendingFile = null;
+            extractedBooks = [];
+            visibilityChanges = {};
+
+        } catch (error) {
+            console.error('[Upload] Error during confirm and upload:', error);
+            saveVisibilityBtn.disabled = false;
+            saveVisibilityBtn.textContent = 'Error - Try Again';
+            uploadStatus.textContent = `Error: ${error.message}`;
+            uploadStatus.style.color = 'red';
+        }
+    }
+
 
     /**
      * Process file offline using sql.js

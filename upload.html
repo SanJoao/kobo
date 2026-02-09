@@ -448,6 +448,121 @@
         .mode-message-public {
             color: #4CAF50 !important;
         }
+
+        /* Pre-upload confirmation styles */
+        .confirmation-message {
+            margin-bottom: 20px;
+        }
+
+        .confirmation-message h3 {
+            margin: 0 0 8px 0;
+        }
+
+        body.dark-mode .confirmation-message>div {
+            background: rgba(46, 125, 50, 0.2) !important;
+        }
+
+        body.dark-mode .confirmation-message h3 {
+            color: #81c784 !important;
+        }
+
+        .btn-cancel {
+            background: #f5f5f5;
+            color: #666;
+            border: 1px solid #ddd;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-right: 12px;
+            transition: all 0.3s;
+        }
+
+        .btn-cancel:hover {
+            background: #e0e0e0;
+            border-color: #ccc;
+        }
+
+        body.dark-mode .btn-cancel {
+            background: #444;
+            color: #ccc;
+            border-color: #555;
+        }
+
+        body.dark-mode .btn-cancel:hover {
+            background: #555;
+        }
+
+        .confirmation-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        /* Drop Zone Styles */
+        .drop-zone {
+            border: 3px dashed #ccc;
+            border-radius: 16px;
+            padding: 40px 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: #fafafa;
+            margin: 20px 0;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.drag-over {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.05);
+        }
+
+        .drop-zone.drag-over {
+            transform: scale(1.02);
+            box-shadow: 0 8px 24px rgba(76, 175, 80, 0.2);
+        }
+
+        .drop-zone-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .drop-zone-text {
+            font-size: 18px;
+            color: #666;
+            margin: 0 0 8px 0;
+        }
+
+        .drop-zone-text strong {
+            color: #333;
+        }
+
+        .drop-zone-or {
+            color: #999;
+            font-size: 14px;
+            margin: 12px 0;
+        }
+
+        body.dark-mode .drop-zone {
+            border-color: #555;
+            background: #2a2a2a;
+        }
+
+        body.dark-mode .drop-zone:hover,
+        body.dark-mode .drop-zone.drag-over {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+        }
+
+        body.dark-mode .drop-zone-text {
+            color: #aaa;
+        }
+
+        body.dark-mode .drop-zone-text strong {
+            color: #e0e0e0;
+        }
     </style>
 </head>
 
@@ -535,7 +650,15 @@
                 <p>This file contains all your highlights and notes.</p>
             </div>
 
-            <button id="upload-button">Select KoboReader.sqlite File</button>
+            <!-- Drop Zone for Drag & Drop -->
+            <div id="drop-zone" class="drop-zone">
+                <div class="drop-zone-content">
+                    <div class="drop-zone-icon">📂</div>
+                    <p class="drop-zone-text">Drag & drop your <strong>KoboReader.sqlite</strong> file here</p>
+                    <p class="drop-zone-or">or</p>
+                    <button id="upload-button">Browse Files</button>
+                </div>
+            </div>
             <input type="file" id="file-input" style="display: none;" accept=".sqlite">
 
             <p id="upload-status"></p>

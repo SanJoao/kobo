@@ -26,7 +26,7 @@ class BookVisibilityManager {
         }
 
         try {
-            const docRef = doc(db, "users", userId, "settings", "book-visibility");
+            const docRef = doc(db, "users", userId, "settings", "bookVisibility");
             const docSnap = await getDoc(docRef);
 
             if (docSnap.exists()) {
@@ -59,7 +59,7 @@ class BookVisibilityManager {
                 visibility[bookId] = status;
             }
 
-            const docRef = doc(db, "users", userId, "settings", "book-visibility");
+            const docRef = doc(db, "users", userId, "settings", "bookVisibility");
             await setDoc(docRef, visibility);
 
             // Update cache
@@ -87,7 +87,7 @@ class BookVisibilityManager {
                 }
             }
 
-            const docRef = doc(db, "users", userId, "settings", "book-visibility");
+            const docRef = doc(db, "users", userId, "settings", "bookVisibility");
             await setDoc(docRef, cleaned);
 
             // Update cache

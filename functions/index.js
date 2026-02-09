@@ -109,6 +109,18 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
             }
         }
 
+        // Load visibility settings that were saved before upload
+        let bookVisibility = {};
+        try {
+            const visibilityDoc = await db.collection("users").doc(userId).collection("settings").doc("bookVisibility").get();
+            if (visibilityDoc.exists) {
+                bookVisibility = visibilityDoc.data() || {};
+                logger.log(`Loaded visibility settings for ${Object.keys(bookVisibility).length} books`);
+            }
+        } catch (e) {
+            logger.warn("Could not load visibility settings:", e.message);
+        }
+
         const highlightQuery = hasColorColumn
             ? `SELECT VolumeID AS book_id, Text AS text, Annotation AS annotation, DateCreated AS date_created, Type AS type, Color AS color FROM Bookmark WHERE Type = 'highlight' OR Type = 'note'`
             : `SELECT VolumeID AS book_id, Text AS text, Annotation AS annotation, DateCreated AS date_created, Type AS type FROM Bookmark WHERE Type = 'highlight' OR Type = 'note'`;
@@ -123,7 +135,15 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
                 const uniqueString = `${userId}-${sanitizedBookId}-${highlight.text}`;
                 const sanitizedHighlightId = crypto.createHash('sha1').update(uniqueString).digest('hex');
                 const highlightRef = db.collection("users").doc(userId).collection("highlights").doc(sanitizedHighlightId);
-                batch.set(highlightRef, { ...highlight, book_id: sanitizedBookId }, { merge: true });
+
+                // Apply visibility from book settings
+                const visibility = bookVisibility[sanitizedBookId] || 'normal';
+
+                batch.set(highlightRef, {
+                    ...highlight,
+                    book_id: sanitizedBookId,
+                    visibility: visibility  // Set visibility based on book settings
+                }, { merge: true });
                 operationCount++;
                 highlightCount++;
 
@@ -134,6 +154,7 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
                 }
             }
         }
+
 
         // 4. Process WordList
         const wordListQuery = "SELECT Text, DateCreated, VolumeId FROM WordList;";
@@ -389,6 +410,14 @@ exports.onCreateHighlight = onDocumentCreated(
         const highlightData = event.data.data();
 
         const db = getFirestore();
+
+        // CHECK VISIBILITY BEFORE FAN-OUT
+        // Skip fan-out for private or excluded highlights
+        const highlightVisibility = highlightData.visibility || 'normal';
+        if (highlightVisibility === 'private' || highlightVisibility === 'excluded') {
+            logger.log(`Skipping feed fanout for ${highlightVisibility} highlight ${highlightId}`);
+            return;
+        }
 
         try {
             // Get user info (actor)
