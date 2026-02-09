@@ -14,6 +14,16 @@ export class UserDiscovery {
     }
 
     /**
+     * Check if a book title is a Kobo sketch (should be excluded)
+     */
+    isSketch(title) {
+        if (!title) return false;
+        const lowerTitle = title.toLowerCase().trim();
+        // Match patterns like "sketch1", "sketch 1", "sketch", etc.
+        return lowerTitle.startsWith('sketch');
+    }
+
+    /**
      * Get "Readers Like You" recommendations
      * Finds users who read similar books using collaborative filtering
      */
@@ -31,7 +41,7 @@ export class UserDiscovery {
                 }
             }
 
-            // Get current user's books
+            // Get current user's books (excluding sketches)
             const userBooksSnapshot = await getDocs(
                 collection(this.db, 'users', currentUserId, 'books')
             );
@@ -41,8 +51,13 @@ export class UserDiscovery {
                 return [];
             }
 
-            const userBooks = new Set(userBooksSnapshot.docs.map(doc => doc.id));
-            console.log(`[UserDiscovery] Current user has ${userBooks.size} books`);
+            // Filter out sketches from user's books
+            const userBooks = new Set(
+                userBooksSnapshot.docs
+                    .filter(doc => !this.isSketch(doc.data().title))
+                    .map(doc => doc.id)
+            );
+            console.log(`[UserDiscovery] Current user has ${userBooks.size} books (after filtering sketches)`);
 
             // Get users who are already following/followers (exclude them)
             const followingSnapshot = await getDocs(
@@ -71,9 +86,18 @@ export class UserDiscovery {
 
                 if (otherUserBooksSnapshot.empty) continue;
 
-                const otherUserBooks = new Set(
-                    otherUserBooksSnapshot.docs.map(doc => doc.id)
-                );
+                // Create a map of book ID to title for this user (excluding sketches)
+                const otherUserBooksMap = new Map();
+                otherUserBooksSnapshot.docs.forEach(doc => {
+                    const data = doc.data();
+                    const title = data.title || 'Unknown Book';
+                    // Skip sketches
+                    if (!this.isSketch(title)) {
+                        otherUserBooksMap.set(doc.id, title);
+                    }
+                });
+
+                const otherUserBooks = new Set(otherUserBooksMap.keys());
 
                 // Calculate Jaccard similarity (intersection / union)
                 const intersection = new Set(
@@ -81,6 +105,9 @@ export class UserDiscovery {
                 );
 
                 if (intersection.size === 0) continue;
+
+                // Get the titles of shared books
+                const sharedBookTitles = [...intersection].map(bookId => otherUserBooksMap.get(bookId));
 
                 const union = new Set([...userBooks, ...otherUserBooks]);
                 const similarity = intersection.size / union.size;
@@ -90,6 +117,7 @@ export class UserDiscovery {
                     userData: userDoc.data(),
                     similarity,
                     sharedBooks: intersection.size,
+                    sharedBookTitles,
                     totalBooks: otherUserBooks.size
                 });
             }
@@ -98,16 +126,32 @@ export class UserDiscovery {
             similarityScores.sort((a, b) => b.similarity - a.similarity);
 
             // Take top N recommendations
-            const recommendations = similarityScores.slice(0, limitCount).map(item => ({
-                userId: item.userId,
-                displayName: item.userData.displayName || 'Anonymous',
-                photoURL: item.userData.photoURL || null,
-                followerCount: item.userData.followerCount || 0,
-                highlightCount: item.userData.highlightCount || 0,
-                sharedBooks: item.sharedBooks,
-                similarity: Math.round(item.similarity * 100),
-                reason: `${item.sharedBooks} book${item.sharedBooks > 1 ? 's' : ''} in common`
-            }));
+            const recommendations = similarityScores.slice(0, limitCount).map(item => {
+                // Get display name from profile.nickname first, then displayName, then 'Anonymous'
+                const displayName = item.userData.profile?.nickname || item.userData.displayName || 'Anonymous';
+
+                // Format reason with book titles (show up to 3 titles)
+                const bookTitles = item.sharedBookTitles || [];
+                let reason;
+                if (bookTitles.length === 1) {
+                    reason = `Both read: ${bookTitles[0]}`;
+                } else if (bookTitles.length <= 3) {
+                    reason = `Both read: ${bookTitles.join(', ')}`;
+                } else {
+                    reason = `Both read: ${bookTitles.slice(0, 2).join(', ')} +${bookTitles.length - 2} more`;
+                }
+
+                return {
+                    userId: item.userId,
+                    displayName,
+                    followerCount: item.userData.followerCount || 0,
+                    highlightCount: item.userData.highlightCount || 0,
+                    sharedBooks: item.sharedBooks,
+                    sharedBookTitles: bookTitles,
+                    similarity: Math.round(item.similarity * 100),
+                    reason
+                };
+            });
 
             // Cache results
             this.recommendationCache.set(cacheKey, {
@@ -305,10 +349,7 @@ export class UserDiscovery {
     renderUserCard(user, showFollowButton = true) {
         return `
             <div class="discovery-user-card" data-user-id="${user.userId}">
-                <a href="/profile.html?userId=${user.userId}" class="discovery-user-link">
-                    <img src="${user.photoURL || '/assets/default-avatar.png'}"
-                         alt="${user.displayName}"
-                         class="discovery-user-avatar">
+                <a href="/user/${user.userId}" class="discovery-user-link">
                     <div class="discovery-user-info">
                         <h4 class="discovery-user-name">${this.escapeHtml(user.displayName)}</h4>
                         <p class="discovery-user-reason">${user.reason}</p>

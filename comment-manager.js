@@ -224,7 +224,7 @@ export class CommentManager {
                  data-parent-id="${comment.parentId || ''}"
                  style="margin-left: ${level * 40}px">
                 <div class="comment-header">
-                    <img src="${comment.userPhotoURL || '/assets/default-avatar.png'}"
+                    <img src="${comment.userPhotoURL || ''}"
                          alt="${comment.userName}"
                          class="comment-avatar">
                     <div class="comment-meta">

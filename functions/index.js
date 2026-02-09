@@ -26,7 +26,7 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
     const userId = filePath.split("/")[1];
     const bucket = getStorage().bucket(fileBucket);
     const tempFilePath = path.join(os.tmpdir(), "KoboReader.sqlite");
-    
+
     await bucket.file(filePath).download({ destination: tempFilePath });
     logger.log("Database downloaded to", tempFilePath);
 
@@ -79,10 +79,8 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
             WHERE ContentType = 6
         `;
 
-        await sqliteDb.each(bookQuery, [], (err, book) => {
-            if (err) {
-                throw err;
-            }
+        const books = await sqliteDb.all(bookQuery);
+        for (const book of books) {
             if (book && book.book_id) {
                 const sanitizedBookId = book.book_id.replace(/\//g, "__");
                 const bookRef = db.collection("users").doc(userId).collection("books").doc(sanitizedBookId);
@@ -96,7 +94,7 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
                     operationCount = 0;
                 }
             }
-        });
+        }
 
         // 2. Process highlights, handling schema differences
         let hasColorColumn = true;
@@ -115,10 +113,8 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
             ? `SELECT VolumeID AS book_id, Text AS text, Annotation AS annotation, DateCreated AS date_created, Type AS type, Color AS color FROM Bookmark WHERE Type = 'highlight' OR Type = 'note'`
             : `SELECT VolumeID AS book_id, Text AS text, Annotation AS annotation, DateCreated AS date_created, Type AS type FROM Bookmark WHERE Type = 'highlight' OR Type = 'note'`;
 
-        await sqliteDb.each(highlightQuery, [], (err, highlight) => {
-            if (err) {
-                throw err;
-            }
+        const highlights = await sqliteDb.all(highlightQuery);
+        for (const highlight of highlights) {
             if (highlight && highlight.book_id && highlight.text) {
                 if (!hasColorColumn) {
                     highlight.color = 0; // Add default color
@@ -137,7 +133,7 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
                     operationCount = 0;
                 }
             }
-        });
+        }
 
         // 4. Process WordList
         const wordListQuery = "SELECT Text, DateCreated, VolumeId FROM WordList;";
@@ -158,7 +154,7 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
                 const uniqueString = `${userId}-${bookTitle}-${word.Text}`;
                 const wordId = crypto.createHash('sha1').update(uniqueString).digest('hex');
                 const wordRef = db.collection("users").doc(userId).collection("words").doc(wordId);
-                
+
                 batch.set(wordRef, {
                     Text: word.Text,
                     DateCreated: word.DateCreated,
@@ -185,8 +181,8 @@ exports.processKoboDB = onObjectFinalized({ cpu: 2, memory: "1GiB" }, async (eve
 
         // Ensure the user document exists by setting a field on it.
         const userRef = db.collection("users").doc(userId);
-        await userRef.set({ 
-            lastUpload: admin.firestore.FieldValue.serverTimestamp() 
+        await userRef.set({
+            lastUpload: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
 
         // 5. Update status
@@ -689,7 +685,7 @@ exports.cleanupFeeds = onSchedule("0 0 * * *", async (event) => {
 /**
  * Create a comment on a highlight
  */
-exports.createComment = onCall(async (request) => {
+exports.createComment = onCall({ cors: true }, async (request) => {
     const { auth, data } = request;
 
     // Check authentication
@@ -782,7 +778,7 @@ exports.createComment = onCall(async (request) => {
 /**
  * Update a comment
  */
-exports.updateComment = onCall(async (request) => {
+exports.updateComment = onCall({ cors: true }, async (request) => {
     const { auth, data } = request;
 
     if (!auth) {
@@ -851,7 +847,7 @@ exports.updateComment = onCall(async (request) => {
 /**
  * Delete a comment
  */
-exports.deleteComment = onCall(async (request) => {
+exports.deleteComment = onCall({ cors: true }, async (request) => {
     const { auth, data } = request;
 
     if (!auth) {

@@ -87,6 +87,14 @@ service cloud.firestore {
         // Allow likes update only
         allow update: if isAuthenticated() &&
                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likeCount']);
+
+        // Comments subcollection
+        match /comments/{commentId} {
+          // Allow read if the highlight is visible to the user (same visibility rules)
+          allow read: if canViewHighlight(userId, get(/databases/$(database)/documents/users/$(userId)/highlights/$(highlightId)).data);
+          // Writes are handled by Cloud Functions only
+          allow write: if false;
+        }
       }
 
       // Words/vocabulary subcollection

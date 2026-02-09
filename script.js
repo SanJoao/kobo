@@ -140,6 +140,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Initialize stats link
             initializeStatsLink(user);
 
+            // Initialize settings link (privacy settings)
+            initializeSettingsLink(user);
+
             // Initialize notification bell
             if (window.notificationUI) {
                 window.notificationUI.initializeNotificationBell();
@@ -233,6 +236,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Show stats link
         statsLink.style.display = 'flex';
+    };
+
+    // Initialize settings link (privacy settings)
+    const initializeSettingsLink = (user) => {
+        const settingsLink = document.getElementById('settings-link');
+
+        if (!settingsLink || !user) return;
+
+        // Show settings link
+        settingsLink.style.display = 'flex';
     };
 
     onAuthStateChanged(auth, user => {
@@ -507,10 +520,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             filterAndSort();
             checkForUrlHighlight();
 
-            // Initialize discovery widgets
-            if (window.discoveryWidgets && userId === auth.currentUser?.uid) {
-                await window.discoveryWidgets.initializeWidgets('discovery-widgets-container');
-            }
+            // Discovery widgets now load lazily from the Discover tab in profile.js
 
         } catch (error) {
             console.error("Error loading user data from Firestore:", error);

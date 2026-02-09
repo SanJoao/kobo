@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -100,12 +101,12 @@
             padding: 16px;
             background: white;
             border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
             transition: all 0.3s;
         }
 
         .user-card:hover {
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             transform: translateY(-2px);
         }
 
@@ -236,8 +237,13 @@
         }
 
         @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         @media (max-width: 768px) {
@@ -259,6 +265,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="connections-container">
         <div class="connections-header">
@@ -345,7 +352,7 @@
                     const userData = userDoc.data();
 
                     document.getElementById('user-name').textContent = userData.displayName || 'User';
-                    document.getElementById('user-avatar').src = userData.photoURL || '/assets/default-avatar.png';
+                    document.getElementById('user-avatar').src = userData.photoURL || '';
                     document.getElementById('user-info').style.display = 'flex';
 
                     // Update title
@@ -395,7 +402,7 @@
                     html += `
                         <div class="user-card">
                             <div class="user-card-info">
-                                <img class="user-card-avatar" src="${user.photoURL || '/assets/default-avatar.png'}" alt="${user.displayName}">
+                                <img class="user-card-avatar" src="${user.photoURL || ''}" alt="${user.displayName}">
                                 <div class="user-card-details">
                                     <h3><a href="/profile.html?userId=${user.userId}">${user.displayName || 'User'}</a></h3>
                                     <div class="user-card-stats">
@@ -445,7 +452,7 @@
                     html += `
                         <div class="user-card">
                             <div class="user-card-info">
-                                <img class="user-card-avatar" src="${user.photoURL || '/assets/default-avatar.png'}" alt="${user.displayName}">
+                                <img class="user-card-avatar" src="${user.photoURL || ''}" alt="${user.displayName}">
                                 <div class="user-card-details">
                                     <h3><a href="/profile.html?userId=${user.userId}">${user.displayName || 'User'}</a></h3>
                                     <div class="user-card-stats">
@@ -486,4 +493,5 @@
 
     <script type="module" src="/follow-manager.js"></script>
 </body>
+
 </html>

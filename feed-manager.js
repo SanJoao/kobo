@@ -273,7 +273,7 @@ export class FeedManager {
             return `
                 <div class="feed-item ${item.read ? 'read' : 'unread'}" data-feed-id="${item.id}">
                     <div class="feed-item-header">
-                        <img src="${item.actorPhotoURL || '/assets/default-avatar.png'}"
+                        <img src="${item.actorPhotoURL || ''}"
                              alt="${item.actorName}"
                              class="feed-avatar">
                         <div class="feed-item-info">
@@ -300,7 +300,7 @@ export class FeedManager {
             return `
                 <div class="feed-item ${item.read ? 'read' : 'unread'}" data-feed-id="${item.id}">
                     <div class="feed-item-header">
-                        <img src="${item.actorPhotoURL || '/assets/default-avatar.png'}"
+                        <img src="${item.actorPhotoURL || ''}"
                              alt="${item.actorName}"
                              class="feed-avatar">
                         <div class="feed-item-info">

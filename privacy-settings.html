@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -33,7 +34,7 @@
             border-radius: 12px;
             padding: 32px;
             margin-bottom: 24px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
 
         .settings-section h2 {
@@ -98,14 +99,17 @@
 
         .toggle-switch {
             position: relative;
-            width: 52px;
-            height: 28px;
+            display: inline-block;
+            width: 48px;
+            height: 26px;
+            flex-shrink: 0;
         }
 
         .toggle-switch input {
             opacity: 0;
             width: 0;
             height: 0;
+            position: absolute;
         }
 
         .toggle-slider {
@@ -117,7 +121,8 @@
             bottom: 0;
             background-color: #ccc;
             transition: 0.3s;
-            border-radius: 28px;
+            border-radius: 26px;
+            overflow: hidden;
         }
 
         .toggle-slider:before {
@@ -125,19 +130,20 @@
             content: "";
             height: 20px;
             width: 20px;
-            left: 4px;
-            bottom: 4px;
+            left: 3px;
+            top: 3px;
             background-color: white;
             transition: 0.3s;
             border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         }
 
-        input:checked + .toggle-slider {
+        input:checked+.toggle-slider {
             background-color: #4CAF50;
         }
 
-        input:checked + .toggle-slider:before {
-            transform: translateX(24px);
+        input:checked+.toggle-slider:before {
+            transform: translateX(22px);
         }
 
         .danger-zone {
@@ -205,7 +211,7 @@
             right: 0;
             background: white;
             padding: 16px 24px;
-            box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
             display: none;
             justify-content: center;
             gap: 12px;
@@ -258,7 +264,10 @@
         }
     </style>
 </head>
+
 <body>
+    <header id="header" class="header"></header>
+
     <div class="settings-container">
         <div class="settings-header">
             <h1>Privacy Settings</h1>
@@ -458,8 +467,8 @@
 
             <div class="setting-item">
                 <div class="setting-info">
-                    <h3>Delete All Highlights</h3>
-                    <p>Permanently delete all your highlights and annotations</p>
+                    <h3>Delete All Data</h3>
+                    <p>Permanently delete all your books, highlights, and reading time</p>
                 </div>
                 <div class="setting-control">
                     <button class="btn-danger" onclick="deleteAllHighlights()">
@@ -490,28 +499,18 @@
         </button>
     </div>
 
+    <!-- Header Initialization -->
+    <script type="module" src="/header-init.js"></script>
+
     <!-- External Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script type="module" src="/data-exporter.js"></script>
 
     <!-- Firebase -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyD7WZLlbv9fjBu5iY6qhvVxIuDZ7-tWZLU",
-            authDomain: "koby-7cf5d.firebaseapp.com",
-            projectId: "koby-7cf5d",
-            storageBucket: "koby-7cf5d.appspot.com",
-            messagingSenderId: "431326563244",
-            appId: "1:431326563244:web:a33e4b5b5b5b5b5b5b5b5b"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        import { auth, db } from "./firebase-init.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+        import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
         let currentUser = null;
         let originalSettings = {};
@@ -523,7 +522,7 @@
                 currentUser = user;
                 loadPrivacySettings();
             } else {
-                window.location.href = '/login.html';
+                window.location.href = '/index.html';
             }
         });
 
@@ -604,7 +603,7 @@
             };
         }
 
-        window.saveSettings = async function() {
+        window.saveSettings = async function () {
             try {
                 const settings = getCurrentSettings();
 
@@ -621,7 +620,7 @@
             }
         };
 
-        window.discardChanges = function() {
+        window.discardChanges = function () {
             if (confirm('Discard all unsaved changes?')) {
                 // Reload settings from originalSettings
                 document.getElementById('profile-visibility').value = originalSettings.profileVisibility || 'public';
@@ -641,7 +640,7 @@
             }
         };
 
-        window.exportUserData = async function() {
+        window.exportUserData = async function () {
             if (confirm('This will export all your data as JSON. Continue?')) {
                 try {
                     // This will be implemented by the data-exporter.js module
@@ -657,26 +656,62 @@
             }
         };
 
-        window.deleteAllHighlights = async function() {
-            const confirmation = prompt('This will permanently delete ALL your highlights. Type "DELETE ALL HIGHLIGHTS" to confirm:');
+        window.deleteAllHighlights = async function () {
+            const confirmation = prompt('This will permanently delete ALL your highlights and books. Type "DELETE ALL HIGHLIGHTS" to confirm:');
 
             if (confirmation === 'DELETE ALL HIGHLIGHTS') {
                 try {
-                    // Import deleteAllHighlights from a Cloud Function
-                    const response = await fetch('YOUR_CLOUD_FUNCTION_URL/deleteAllHighlights', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'Bearer ' + await currentUser.getIdToken()
-                        }
-                    });
+                    // Import required Firestore functions
+                    const { collection, getDocs, writeBatch } = await import("https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js");
 
-                    if (response.ok) {
-                        alert('All highlights have been deleted.');
-                        window.location.reload();
-                    } else {
-                        throw new Error('Failed to delete highlights');
+                    // Get all highlights for the current user
+                    const highlightsRef = collection(db, 'users', currentUser.uid, 'highlights');
+                    const highlightsSnapshot = await getDocs(highlightsRef);
+
+                    // Get all books for the current user
+                    const booksRef = collection(db, 'users', currentUser.uid, 'books');
+                    const booksSnapshot = await getDocs(booksRef);
+
+                    if (highlightsSnapshot.empty && booksSnapshot.empty) {
+                        alert('No highlights or books to delete.');
+                        return;
                     }
+
+                    // Delete highlights and books in batches (Firestore batch limit is 500)
+                    const batchSize = 500;
+                    let deletedHighlightsCount = 0;
+                    let deletedBooksCount = 0;
+
+                    // Delete all highlights
+                    const highlightDocs = highlightsSnapshot.docs;
+                    for (let i = 0; i < highlightDocs.length; i += batchSize) {
+                        const batch = writeBatch(db);
+                        const batchDocs = highlightDocs.slice(i, i + batchSize);
+
+                        batchDocs.forEach(doc => {
+                            batch.delete(doc.ref);
+                        });
+
+                        await batch.commit();
+                        deletedHighlightsCount += batchDocs.length;
+                    }
+
+                    // Delete all books
+                    const bookDocs = booksSnapshot.docs;
+                    for (let i = 0; i < bookDocs.length; i += batchSize) {
+                        const batch = writeBatch(db);
+                        const batchDocs = bookDocs.slice(i, i + batchSize);
+
+                        batchDocs.forEach(doc => {
+                            batch.delete(doc.ref);
+                        });
+
+                        await batch.commit();
+                        deletedBooksCount += batchDocs.length;
+                    }
+
+                    alert(`Successfully deleted ${deletedHighlightsCount} highlights and ${deletedBooksCount} books.`);
+                    window.location.reload();
                 } catch (error) {
                     console.error('Error deleting highlights:', error);
                     alert('Error deleting highlights. Please try again.');
@@ -684,30 +719,54 @@
             }
         };
 
-        window.deleteAccount = async function() {
+        window.deleteAccount = async function () {
             const confirmation = prompt('This will PERMANENTLY DELETE your account and ALL data. Type "DELETE MY ACCOUNT" to confirm:');
 
             if (confirmation === 'DELETE MY ACCOUNT') {
                 try {
-                    // Call Cloud Function to delete account
-                    const response = await fetch('YOUR_CLOUD_FUNCTION_URL/deleteAccount', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'Bearer ' + await currentUser.getIdToken()
-                        }
-                    });
+                    // Import required Firestore functions
+                    const { collection, getDocs, writeBatch, doc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js");
 
-                    if (response.ok) {
-                        alert('Your account has been deleted.');
-                        await auth.signOut();
-                        window.location.href = '/';
-                    } else {
-                        throw new Error('Failed to delete account');
+                    const userId = currentUser.uid;
+                    const batchSize = 500;
+
+                    // Delete all subcollections: highlights, books, words, settings
+                    const subcollections = ['highlights', 'books', 'words', 'settings'];
+
+                    for (const subcollectionName of subcollections) {
+                        const collectionRef = collection(db, 'users', userId, subcollectionName);
+                        const snapshot = await getDocs(collectionRef);
+
+                        const docs = snapshot.docs;
+                        for (let i = 0; i < docs.length; i += batchSize) {
+                            const batch = writeBatch(db);
+                            const batchDocs = docs.slice(i, i + batchSize);
+
+                            batchDocs.forEach(docSnap => {
+                                batch.delete(docSnap.ref);
+                            });
+
+                            await batch.commit();
+                        }
                     }
+
+                    // Delete the user document itself
+                    await deleteDoc(doc(db, 'users', userId));
+
+                    // Delete the Firebase Auth account
+                    await currentUser.delete();
+
+                    alert('Your account has been deleted.');
+                    window.location.href = '/';
                 } catch (error) {
                     console.error('Error deleting account:', error);
-                    alert('Error deleting account. Please try again.');
+
+                    // If the error is due to requiring re-authentication
+                    if (error.code === 'auth/requires-recent-login') {
+                        alert('For security reasons, please sign out and sign back in, then try again.');
+                    } else {
+                        alert('Error deleting account. Please try again.');
+                    }
                 }
             }
         };
@@ -721,4 +780,5 @@
         });
     </script>
 </body>
+
 </html>

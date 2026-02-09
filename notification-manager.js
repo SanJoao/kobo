@@ -216,7 +216,7 @@ export class NotificationManager {
             <div class="notification-item ${unreadClass}"
                  data-notification-id="${notification.id}"
                  onclick="handleNotificationClick('${notification.id}', '${link}')">
-                <img src="${notification.actorPhotoURL || '/assets/default-avatar.png'}"
+                <img src="${notification.actorPhotoURL || ''}"
                      alt="${notification.actorName}"
                      class="notification-avatar">
                 <div class="notification-content">

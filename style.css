@@ -916,16 +916,14 @@ body.dark-mode .follow-button.following {
     color: white;
 }
 
-/* Content with Sidebar Layout */
+/* Content Layout (previously with sidebar, now full width) */
 .content-with-sidebar {
-    display: grid;
-    grid-template-columns: 1fr 350px;
-    gap: 30px;
+    display: block;
     margin-top: 20px;
 }
 
 .main-column {
-    min-width: 0; /* Prevent grid blowout */
+    width: 100%;
 }
 
 .sidebar {

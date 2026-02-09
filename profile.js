@@ -29,6 +29,7 @@ function renderProfile(data, isOwner) {
             <button class="tab-link active" data-tab="profile-view">Profile</button>
             <button class="tab-link" data-tab="liked-highlights">Liked Highlights</button>
             <button class="tab-link" data-tab="my-words">My Words</button>
+            <button class="tab-link" data-tab="discover-readers">Discover</button>
         </div>
         <div id="profile-view" class="tab-content active">
             <h2 id="profile-nickname">${data.nickname || 'Anonymous'}</h2>
@@ -80,6 +81,11 @@ function renderProfile(data, isOwner) {
         <div id="my-words" class="tab-content">
             <h3>My Words</h3>
             <div id="my-words-container"></div>
+        </div>
+        <div id="discover-readers" class="tab-content">
+            <h3><i class="fas fa-book-reader"></i> Readers Like You</h3>
+            <p class="discovery-widget-subtitle">People who read similar books</p>
+            <div id="discover-readers-container"></div>
         </div>
         <div id="profile-edit" style="display: none;">
             <form id="profile-form">
@@ -234,6 +240,17 @@ function renderProfile(data, isOwner) {
                     loadMyWords(userId);
                 } else {
                     console.error("User ID not found for loading my words.");
+                }
+                // Ocultar dashboard y filtros
+                if (dashboard) dashboard.style.display = 'none';
+                if (filters) filters.style.display = 'none';
+                if (highlightsContainer) highlightsContainer.style.display = 'none';
+            } else if (tabId === 'discover-readers') {
+                const userId = profileSection.dataset.userId;
+                if (userId) {
+                    loadDiscoverReaders(userId);
+                } else {
+                    console.error("User ID not found for loading discover readers.");
                 }
                 // Ocultar dashboard y filtros
                 if (dashboard) dashboard.style.display = 'none';
@@ -403,5 +420,45 @@ async function loadMyWords(userId) {
     } catch (error) {
         console.error("Error loading words:", error);
         container.innerHTML = '<p>Error loading words.</p>';
+    }
+}
+
+async function loadDiscoverReaders(currentUserId) {
+    const container = document.getElementById('discover-readers-container');
+    if (!container) return;
+
+    container.innerHTML = '<p><i class="fas fa-spinner fa-spin"></i> Finding readers like you...</p>';
+
+    try {
+        // Check if userDiscovery is available
+        if (!window.userDiscovery) {
+            container.innerHTML = '<p>Discovery feature not available.</p>';
+            return;
+        }
+
+        const readers = await window.userDiscovery.getReadersLikeYou(currentUserId, 10);
+
+        if (readers.length === 0) {
+            container.innerHTML = `
+                <div class="discovery-empty">
+                    <i class="fas fa-user-friends"></i>
+                    <p>No similar readers found yet</p>
+                    <p class="discovery-empty-hint">Upload more books to find readers like you!</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = '<div class="discover-readers-list"></div>';
+        const listContainer = container.querySelector('.discover-readers-list');
+
+        readers.forEach(user => {
+            const userCard = window.userDiscovery.renderUserCard(user, true);
+            listContainer.innerHTML += userCard;
+        });
+
+    } catch (error) {
+        console.error("Error loading discover readers:", error);
+        container.innerHTML = '<p>Error loading recommendations. Please try again later.</p>';
     }
 }

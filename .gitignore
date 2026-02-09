@@ -1,1 +1,37 @@
+# Dependencies
 node_modules/
+functions/node_modules/
+
+# Firebase
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.firebase/
+
+# Debug and temporary files
+*.log
+delete-log.txt
+deploy-log.txt
+
+# Local data files (contain personal highlights)
+*.sqlite
+highlights.json
+books.json
+words.json
+
+# Python cache
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files (add these if you ever use them)
+.env
+.env.local
+.env.*.local

@@ -3,11 +3,12 @@
  * GDPR-compliant data export in JSON and CSV formats
  */
 
-import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { db } from "./firebase-init.js";
 
 export class DataExporter {
     constructor() {
-        this.db = getFirestore();
+        this.db = db;
     }
 
     /**

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -78,7 +79,7 @@
             background: white;
             border-radius: 12px;
             padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
             transition: all 0.3s;
             border-left: 4px solid transparent;
         }
@@ -89,7 +90,7 @@
         }
 
         .feed-item:hover {
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
         .feed-item-header {
@@ -274,8 +275,13 @@
         }
 
         @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         @media (max-width: 768px) {
@@ -298,7 +304,10 @@
         }
     </style>
 </head>
+
 <body>
+    <header id="header" class="header"></header>
+
     <div class="feed-container">
         <div class="feed-header">
             <h1>Activity Feed</h1>
@@ -328,22 +337,13 @@
         </div>
     </div>
 
+    <!-- Header Initialization -->
+    <script type="module" src="/header-init.js"></script>
+
     <!-- Firebase -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyD7WZLlbv9fjBu5iY6qhvVxIuDZ7-tWZLU",
-            authDomain: "koby-7cf5d.firebaseapp.com",
-            projectId: "koby-7cf5d",
-            storageBucket: "koby-7cf5d.appspot.com",
-            messagingSenderId: "431326563244",
-            appId: "1:431326563244:web:a33e4b5b5b5b5b5b5b5b5b"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
+        import { auth } from "./firebase-init.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
 
         let currentUser = null;
         let isLoading = false;
@@ -358,7 +358,7 @@
                 setupPullToRefresh();
                 setupMarkAllRead();
             } else {
-                window.location.href = '/login.html';
+                window.location.href = '/index.html';
             }
         });
 
@@ -554,4 +554,5 @@
 
     <script type="module" src="/feed-manager.js"></script>
 </body>
+
 </html>

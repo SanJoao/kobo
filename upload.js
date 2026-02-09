@@ -20,6 +20,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const bookManagementSection = document.getElementById('book-management-section');
     const bookListContainer = document.getElementById('book-list');
     const saveVisibilityBtn = document.getElementById('save-visibility-btn');
+    const bulkActionsContainer = document.getElementById('bulk-actions');
+    const selectAllPrivate = document.getElementById('select-all-private');
+    const selectAllExclude = document.getElementById('select-all-exclude');
+    const visibilityModeMessage = document.getElementById('visibility-mode-message');
 
     let currentUser = null;
     let selectedMode = 'offline';
@@ -363,7 +367,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 await window.bookVisibilityManager.getBookVisibility(userId);
             }
 
-            renderBookList();
+            // If private mode, auto-select all books as private
+            const autoPrivate = selectedMode === 'private';
+            renderBookList(autoPrivate);
 
         } catch (error) {
             console.error('[Upload] Error loading books:', error);
@@ -373,17 +379,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /**
      * Render the book list with visibility toggles
+     * @param {boolean} autoPrivate - If true, auto-select all books as private (for private mode)
      */
-    function renderBookList() {
+    function renderBookList(autoPrivate = false) {
         if (userBooks.length === 0) {
             bookListContainer.innerHTML = '<div class="no-books-message">No books found. Upload a file to get started!</div>';
+            if (bulkActionsContainer) bulkActionsContainer.style.display = 'none';
             return;
+        }
+
+        // Show bulk actions when there are books
+        if (bulkActionsContainer) {
+            bulkActionsContainer.style.display = 'block';
+        }
+
+        // Update mode message
+        if (visibilityModeMessage) {
+            if (selectedMode === 'private') {
+                visibilityModeMessage.innerHTML = '🔐 <strong>Private Mode</strong> - All books are marked private by default. Review and adjust if needed.';
+                visibilityModeMessage.className = 'mode-message-private';
+            } else if (selectedMode === 'public') {
+                visibilityModeMessage.innerHTML = '🌍 <strong>Public Mode</strong> - Choose which books to keep private or exclude.';
+                visibilityModeMessage.className = 'mode-message-public';
+            } else {
+                visibilityModeMessage.textContent = 'Control which books and their highlights are visible';
+                visibilityModeMessage.className = '';
+            }
         }
 
         bookListContainer.innerHTML = '';
 
         userBooks.forEach(book => {
-            const currentStatus = window.bookVisibilityManager?.getStatus(book.id) || 'normal';
+            // For private mode with autoPrivate, default all to private
+            let currentStatus = window.bookVisibilityManager?.getStatus(book.id) || 'normal';
+
+            // If autoPrivate is true and no existing status, set to private
+            if (autoPrivate && currentStatus === 'normal') {
+                currentStatus = 'private';
+                visibilityChanges[book.id] = 'private';
+            }
+
             const isPrivate = currentStatus === 'private';
             const isExcluded = currentStatus === 'excluded';
 
@@ -426,6 +461,76 @@ document.addEventListener('DOMContentLoaded', () => {
         bookListContainer.querySelectorAll('.exclude-toggle').forEach(toggle => {
             toggle.addEventListener('change', (e) => handleVisibilityToggle(e, 'excluded'));
         });
+
+        // If autoPrivate was triggered, enable save button
+        if (autoPrivate && Object.keys(visibilityChanges).length > 0) {
+            hasChanges = true;
+            saveVisibilityBtn.disabled = false;
+            if (selectAllPrivate) selectAllPrivate.checked = true;
+        }
+
+        // Update bulk selection checkboxes state
+        updateBulkCheckboxState();
+    }
+
+    /**
+     * Update the bulk selection checkboxes based on current toggles state
+     */
+    function updateBulkCheckboxState() {
+        if (!selectAllPrivate || !selectAllExclude) return;
+
+        const allPrivateToggles = document.querySelectorAll('.private-toggle');
+        const allExcludeToggles = document.querySelectorAll('.exclude-toggle');
+
+        const allPrivateChecked = allPrivateToggles.length > 0 &&
+            Array.from(allPrivateToggles).every(t => t.checked);
+        const allExcludeChecked = allExcludeToggles.length > 0 &&
+            Array.from(allExcludeToggles).every(t => t.checked);
+
+        selectAllPrivate.checked = allPrivateChecked;
+        selectAllExclude.checked = allExcludeChecked;
+    }
+
+    /**
+     * Handle bulk selection toggle
+     */
+    function handleBulkToggle(type, isChecked) {
+        const privateToggles = document.querySelectorAll('.private-toggle');
+        const excludeToggles = document.querySelectorAll('.exclude-toggle');
+
+        if (type === 'private') {
+            privateToggles.forEach(toggle => {
+                toggle.checked = isChecked;
+                visibilityChanges[toggle.dataset.bookId] = isChecked ? 'private' : 'normal';
+            });
+            // If checking private, uncheck all exclude
+            if (isChecked) {
+                excludeToggles.forEach(toggle => toggle.checked = false);
+                if (selectAllExclude) selectAllExclude.checked = false;
+            }
+        } else if (type === 'excluded') {
+            excludeToggles.forEach(toggle => {
+                toggle.checked = isChecked;
+                visibilityChanges[toggle.dataset.bookId] = isChecked ? 'excluded' : 'normal';
+            });
+            // If checking exclude, uncheck all private
+            if (isChecked) {
+                privateToggles.forEach(toggle => toggle.checked = false);
+                if (selectAllPrivate) selectAllPrivate.checked = false;
+            }
+        }
+
+        hasChanges = true;
+        saveVisibilityBtn.disabled = false;
+        saveVisibilityBtn.textContent = 'Save Changes';
+    }
+
+    // Bulk selection event listeners
+    if (selectAllPrivate) {
+        selectAllPrivate.addEventListener('change', (e) => handleBulkToggle('private', e.target.checked));
+    }
+    if (selectAllExclude) {
+        selectAllExclude.addEventListener('change', (e) => handleBulkToggle('excluded', e.target.checked));
     }
 
     /**
@@ -453,6 +558,9 @@ document.addEventListener('DOMContentLoaded', () => {
         hasChanges = true;
         saveVisibilityBtn.disabled = false;
         saveVisibilityBtn.textContent = 'Save Changes';
+
+        // Update bulk checkbox state
+        updateBulkCheckboxState();
     }
 
     /**

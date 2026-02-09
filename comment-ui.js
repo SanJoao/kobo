@@ -163,7 +163,9 @@ window.commentUI = new CommentUI();
 
 // Global helper functions for onclick handlers
 window.submitComment = async function (highlightId, highlightOwnerId, parentId = null) {
-    const currentUser = window.auth?.currentUser || window.currentUser;
+    // Import auth dynamically to ensure it's available
+    const { auth } = await import('./firebase-config.js');
+    const currentUser = auth.currentUser;
     if (!currentUser) {
         window.location.href = '/login.html';
         return;
