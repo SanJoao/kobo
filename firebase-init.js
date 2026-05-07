@@ -1,6 +1,6 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-analytics.js";
+import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-analytics.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 import { getStorage } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-storage.js";
@@ -19,6 +19,24 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const analytics = getAnalytics(app);
+
+// Expose globally so non-module callers and modules without an analytics import
+// can fire events via window.track('event_name', { ...params })
+window.analytics = analytics;
+window.logEvent = logEvent;
+window.track = (eventName, params = {}) => {
+    try {
+        if (window.analytics) logEvent(window.analytics, eventName, params);
+    } catch (e) {
+        console.warn('[track] failed', eventName, e);
+    }
+};
+
+window.track('page_view', {
+    page_location: window.location.href,
+    page_path: window.location.pathname,
+    page_title: document.title
+});
 
 // Export the necessary Firebase services
 export const auth = getAuth(app);

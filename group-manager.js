@@ -45,6 +45,12 @@ export class GroupManager {
 
             if (result.data.success) {
                 console.log('[GroupManager] Group created:', result.data.groupId);
+                window.track?.('create_group', {
+                    group_id: result.data.groupId,
+                    is_private: isPrivate,
+                    has_book: !!bookId,
+                    tag_count: tags.length
+                });
                 return {
                     success: true,
                     groupId: result.data.groupId,
@@ -71,6 +77,7 @@ export class GroupManager {
 
             if (result.data.success) {
                 console.log('[GroupManager] Successfully joined group');
+                window.track?.('join_group', { group_id: groupId });
                 return { success: true, message: result.data.message };
             }
 

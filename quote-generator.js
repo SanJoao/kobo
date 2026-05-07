@@ -236,6 +236,12 @@ export class QuoteImageGenerator {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+
+        window.track?.('download_quote_image', {
+            style,
+            highlight_id: highlight?.highlight_id,
+            book_title: highlight?.book_title
+        });
     }
 
     /**
@@ -255,6 +261,11 @@ export class QuoteImageGenerator {
         if (navigator.canShare && navigator.canShare(shareData)) {
             try {
                 await navigator.share(shareData);
+                window.track?.('share_quote_image', {
+                    style,
+                    method: 'web_share',
+                    highlight_id: highlight?.highlight_id
+                });
                 return { success: true };
             } catch (error) {
                 if (error.name !== 'AbortError') {

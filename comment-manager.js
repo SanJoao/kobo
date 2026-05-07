@@ -142,6 +142,11 @@ export class CommentManager {
 
             if (result.data.success) {
                 console.log('[CommentManager] Comment created:', result.data.commentId);
+                window.track?.('comment_posted', {
+                    highlight_id: highlightId,
+                    is_reply: !!parentId,
+                    text_length: text?.length || 0
+                });
                 return { success: true, comment: result.data.comment };
             }
 

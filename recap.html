@@ -171,6 +171,7 @@
     </main>
 
     <script type="module" src="/firebase-config.js"></script>
+    <script type="module" src="/firebase-init.js"></script>
     <script type="module" src="/recap-generator.js"></script>
     <script type="module">
         import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
@@ -212,6 +213,12 @@
                 // Show recap, hide loading
                 document.getElementById('recap-loading').style.display = 'none';
                 document.getElementById('recap-container').style.display = 'block';
+
+                window.track?.('view_recap', {
+                    year: recapData?.year,
+                    total_highlights: recapData?.totalHighlights,
+                    unique_books: recapData?.uniqueBooks
+                });
 
                 // Initialize slide indicators
                 initializeSlideIndicators();
@@ -429,6 +436,7 @@
             const text = `I read ${recapData.totalHighlights} highlights from ${recapData.uniqueBooks} books in ${recapData.year}! 📚✨ Check out my reading personality: ${recapData.personality.type} ${recapData.personality.emoji}`;
             const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
             window.open(url, '_blank');
+            window.track?.('share_recap', { destination: 'twitter', year: recapData.year });
         });
 
         // Download recap
@@ -437,6 +445,7 @@
                 const button = document.getElementById('download-recap');
                 button.disabled = true;
                 button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+                window.track?.('download_recap', { year: recapData?.year });
 
                 // Create a canvas for each slide
                 const slides = document.querySelectorAll('.recap-slide');

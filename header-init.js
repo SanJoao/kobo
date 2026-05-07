@@ -24,6 +24,13 @@ export async function initializeHeader(headerElementId = 'header') {
             return;
         }
 
+        const kofiBtn = document.getElementById('kofi-btn');
+        if (kofiBtn) {
+            kofiBtn.addEventListener('click', () => {
+                window.track?.('donate_click', { source: 'header', page: window.location.pathname });
+            });
+        }
+
         // Wait for auth state and initialize nav links
         onAuthStateChanged(auth, async (user) => {
             if (user) {

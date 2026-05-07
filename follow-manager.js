@@ -29,6 +29,7 @@ export class FollowManager {
                 // Clear cache
                 this.followingCache.clear();
                 console.log('[FollowManager] Successfully followed user');
+                window.track?.('follow_user', { target_user_id: userId });
                 return { success: true };
             } else {
                 throw new Error(result.data.message || 'Failed to follow user');
@@ -52,6 +53,7 @@ export class FollowManager {
                 // Clear cache
                 this.followingCache.clear();
                 console.log('[FollowManager] Successfully unfollowed user');
+                window.track?.('unfollow_user', { target_user_id: userId });
                 return { success: true };
             } else {
                 throw new Error(result.data.message || 'Failed to unfollow user');
